@@ -1,0 +1,175 @@
+/* Additional styles to append to style.css */
+
+/* --- Track Map Layout --- */
+.track-container {
+  flex-grow: 1;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.3);
+}
+
+#trackCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: grab;
+}
+
+/* --- Standings Board --- */
+.standings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.lap-counter {
+  font-family: 'Space Grotesk', monospace;
+  font-size: 0.9rem;
+  color: var(--neon-yellow);
+  font-weight: 600;
+  background: rgba(255, 242, 0, 0.1);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 242, 0, 0.2);
+}
+
+.standings-list {
+  flex-grow: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  /* Scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--neon-red) transparent;
+}
+
+.standings-list::-webkit-scrollbar {
+  width: 4px;
+}
+.standings-list::-webkit-scrollbar-thumb {
+  background-color: var(--neon-red);
+  border-radius: 4px;
+}
+
+.driver-row {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border-left: 4px solid var(--text-muted);
+  transition: transform 0.2s ease, background 0.2s ease;
+  animation: slideInRight 0.3s ease forwards;
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.driver-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+}
+
+.driver-row .pos {
+  width: 30px;
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.driver-row .driver-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.driver-row .name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.driver-row .team {
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.driver-row .gap {
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* --- Radio Feed --- */
+.radio-feed {
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.radio-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px;
+  border-radius: 12px;
+  animation: slideDown 0.4s ease forwards;
+}
+
+.radio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.radio-header .driver {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.radio-header .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.radio-header .time {
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.radio-body {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--neon-yellow);
+  font-weight: 500;
+  font-size: 1.05rem;
+}
+
+.radio-body i {
+  width: 18px;
+  height: 18px;
+  opacity: 0.8;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* --- Animations --- */
+@keyframes slideInRight {
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
