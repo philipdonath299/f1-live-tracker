@@ -43,6 +43,9 @@ const StandingsBoard = {
         <div class="driver-info">
           <span class="name">${driver.full_name}</span>
           <span class="team" style="color: ${color}">${driver.team_name || 'N/A'}</span>
+          <span class="telemetry" style="font-size: 0.7rem; color: #aaa; margin-top:2px;">
+            ${driver.speed ? `SPD: ${driver.speed}km/h` : ''} ${driver.gear ? `| Gear: ${driver.gear}` : ''}
+          </span>
         </div>
         <div class="gap">${gapStr}</div>
       `;

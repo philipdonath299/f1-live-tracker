@@ -67,20 +67,27 @@ const TrackMap = {
     
     if (rangeX === 0 || rangeY === 0) return { x: this.width/2, y: this.height/2 };
 
-    // Scale while preserving aspect ratio
+    // F1 coordinates: x,y are often rotated 90 degrees or flipped depending on the circuit's geographical north.
+    // To generally fix the "wrong" look, we need to map X to Canvas X and Y to Canvas Y while preserving aspect ratio, 
+    // but we MUST use the same scale factor for both to avoid squishing the track.
+    
+    // 1. Find the single global scale that fits BOTH dimensions inside the canvas padding
     const scaleX = (this.width - this.padding * 2) / rangeX;
     const scaleY = (this.height - this.padding * 2) / rangeY;
-    const scale = Math.min(scaleX, scaleY);
+    const scale = Math.min(scaleX, scaleY); // Critical: Use the smallest scale for BOTH
     
-    // Center track in the view
+    // 2. Calculate the actual width/height of the track drawing in pixels
     const scaledWidth = rangeX * scale;
     const scaledHeight = rangeY * scale;
+    
+    // 3. Find the offsets to perfectly center that drawing inside the canvas
     const offsetX = (this.width - scaledWidth) / 2;
     const offsetY = (this.height - scaledHeight) / 2;
     
-    // Invert Y axis because canvas 0,0 is top-left, but F1 coordinates 0,0 is usually cartesian bottom-left
-    const cx = (x - this.minX) * scale + offsetX;
-    const cy = this.height - ((y - this.minY) * scale + offsetY);
+    // 4. Plot. Notice we invert X to prevent the track from being mirrored horizontally, 
+    // and we DON'T invert Y because canvas 0,0 is top-left which naturally flips it to match TV broadcasts.
+    const cx = ((this.maxX - x) * scale) + offsetX;
+    const cy = ((y - this.minY) * scale) + offsetY;
     
     return { x: cx, y: cy };
   },
@@ -130,6 +137,10 @@ const TrackMap = {
       const l = latestLoc[dNum];
       const driver = drivers.find(d => d.driver_number == dNum) || { driver_number: dNum, team_colour: '888' };
       
+      // Attach telemetry to driver object briefly for drawing
+      driver._currentSpeed = l.speed;
+      driver._currentGear = l.gear;
+      
       const coords = this.mapToCanvas(l.x, l.y);
       this.drawDriverDot(driver, coords.x, coords.y);
     });
@@ -162,5 +173,12 @@ const TrackMap = {
     this.ctx.font = 'bold 10px "Space Grotesk", sans-serif';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(driver.driver_number, x, y + 21);
+    
+    // Telemetry Text
+    if (driver._currentSpeed > 0) {
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        this.ctx.font = '9px "Space Grotesk", sans-serif';
+        this.ctx.fillText(`${driver._currentSpeed}km/h`, x, y - 8);
+    }
   }
 };

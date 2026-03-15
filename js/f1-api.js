@@ -100,20 +100,27 @@ const F1API = {
             
             const posRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${start_time}`);
             const posData = await posRes.json();
-            
+            // Fetch locations
             const locRes = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&date>=${recent_loc}`);
             const locData = await locRes.json();
+            
+            // Fetch car telemetry (Speed, RPM, Gear)
+            const telRes = await fetch(`${API_BASE_URL}/car_data?session_key=${this.session.session_key}&date>=${recent_loc}`);
+            const telData = await telRes.json();
 
+            // Fetch radios
             const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`);
             const radioData = await radioRes.json();
 
             if (posData && posData.length > 0) {
-                const formatted = this._formatStandings(posData);
+                const formatted = this._formatStandings(posData, telData);
                 if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
             }
 
             if (locData && locData.length > 0) {
-                if (this.onTrackUpdate) this.onTrackUpdate(locData, this.drivers);
+                // Merge telemetry into locations
+                const enhancedLoc = this._mergeTelemetry(locData, telData);
+                if (this.onTrackUpdate) this.onTrackUpdate(enhancedLoc, this.drivers);
             }
 
             if (radioData && radioData.length > 0) {
@@ -130,7 +137,7 @@ const F1API = {
             const radioData = await radioRes.json();
             
             if (posData && posData.length > 0) {
-                const formatted = this._formatStandings(posData);
+                const formatted = this._formatStandings(posData, []);
                 if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
             }
             
@@ -148,24 +155,53 @@ const F1API = {
     }
   },
   
-  _formatStandings(positions) {
-      // API returns multiple entries per driver over time. Get latest position per driver
+  _formatStandings(positions, telemetryData) {
+      // API returns multiple entries per driver over time. Get latest position
       const latestPos = {};
       positions.forEach(p => {
           latestPos[p.driver_number] = p;
       });
       
+      const latestTel = {};
+      if (telemetryData) {
+          telemetryData.forEach(t => {
+              latestTel[t.driver_number] = t;
+          });
+      }
+      
       const merged = Object.keys(latestPos).map(dNum => {
           const p = latestPos[dNum];
+          const t = latestTel[dNum] || {};
           const driver = this.drivers.find(d => d.driver_number == dNum);
           return {
               ...(driver || { full_name: `Driver ${dNum}`, team_colour: "888" }),
-              position: p.position
+              position: p.position,
+              speed: t.speed || 0,
+              gear: t.n_gear || 0
           };
       });
       
       // Sort by position
       return merged.sort((a, b) => a.position - b.position);
+  },
+  
+  _mergeTelemetry(locations, telemetry) {
+      const latestTel = {};
+      if (telemetry) {
+          telemetry.forEach(t => {
+              latestTel[t.driver_number] = t;
+          });
+      }
+      
+      return locations.map(loc => {
+          const t = latestTel[loc.driver_number] || {};
+          return {
+              ...loc,
+              speed: t.speed || 0,
+              gear: t.n_gear || 0,
+              rpm: t.rpm || 0
+          };
+      });
   },
   
   _processRadios(radios) {
