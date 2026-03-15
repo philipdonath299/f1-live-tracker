@@ -29,7 +29,7 @@ const F1API = {
       if (sessions && sessions.length > 0) {
         // Get most recent session (qualifying, race, practice)
         this.session = sessions[sessions.length - 1];
-        document.getElementById('session-name').textContent = `${this.session.meeting_name} - ${this.session.session_name}`;
+        document.getElementById('session-name').innerHTML = `${this.session.country_name} - ${this.session.session_name} <span class="pulse-dot" style="display:inline-block; margin-left: 4px;"></span>`;
         console.log("Session loaded:", this.session);
       } else {
          document.getElementById('session-name').textContent = `Demo Mode`;
@@ -91,37 +91,54 @@ const F1API = {
     if (this.session) {
       try {
         const now = new Date();
-        // Fallback for older sessions - OpenF1 API might not have live. 
-        // If the session ended days ago, polling with "Date.now()" will return nothing.
-        // For demonstration, we assume it's live or we poll the last X seconds 
-        // We'll still retrieve data if the user wants "current". If session is over, we'll get nothing from date>=now.
-        const end_time = now.toISOString();
-        const start_time = new Date(now.getTime() - 60000).toISOString(); // Look back 60s
-        const recent_loc = new Date(now.getTime() - 10000).toISOString(); // 10s for track
+        const sessionStart = new Date(this.session.date_start);
+        const isLive = (now - sessionStart) < (4 * 60 * 60 * 1000); // Assume live if started less than 4 hours ago
         
-        // Fetch standings
-        const posRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${start_time}`);
-        const posData = await posRes.json();
-        
-        // Fetch locations
-        const locRes = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&date>=${recent_loc}`);
-        const locData = await locRes.json();
+        if (isLive) {
+            const start_time = new Date(now.getTime() - 60000).toISOString(); 
+            const recent_loc = new Date(now.getTime() - 10000).toISOString(); 
+            
+            const posRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${start_time}`);
+            const posData = await posRes.json();
+            
+            const locRes = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&date>=${recent_loc}`);
+            const locData = await locRes.json();
 
-        // Fetch radios
-        const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`);
-        const radioData = await radioRes.json();
+            const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`);
+            const radioData = await radioRes.json();
 
-        if (posData && posData.length > 0) {
-            const formatted = this._formatStandings(posData);
-            if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
-        }
+            if (posData && posData.length > 0) {
+                const formatted = this._formatStandings(posData);
+                if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
+            }
 
-        if (locData && locData.length > 0) {
-            if (this.onTrackUpdate) this.onTrackUpdate(locData, this.drivers);
-        }
+            if (locData && locData.length > 0) {
+                if (this.onTrackUpdate) this.onTrackUpdate(locData, this.drivers);
+            }
 
-        if (radioData && radioData.length > 0) {
-            this._processRadios(radioData);
+            if (radioData && radioData.length > 0) {
+                this._processRadios(radioData);
+            }
+        } else {
+            console.log("Session is past, doing one-time historical fetch");
+            if (this.pollInterval) clearInterval(this.pollInterval);
+            
+            const posRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}`);
+            const posData = await posRes.json();
+            
+            const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`);
+            const radioData = await radioRes.json();
+            
+            if (posData && posData.length > 0) {
+                const formatted = this._formatStandings(posData);
+                if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
+            }
+            
+            if (radioData && radioData.length > 0) {
+                this._processRadios(radioData);
+            }
+            
+            document.getElementById('session-name').innerHTML = `${this.session.country_name} - ${this.session.session_name} <span style="font-size:0.7rem; color: #888; margin-left: 6px;">(FINAL)</span>`;
         }
       } catch(e) {
         console.warn("Poll fetch failed", e);
@@ -192,7 +209,7 @@ const F1API = {
       this.trackPoints = [];
       
       // 3. Clear UI immediately
-      document.getElementById('session-name').innerHTML = `${newSession.meeting_name} <span class="pulse-dot" style="display:inline-block; margin-left: 4px;"></span>`;
+      document.getElementById('session-name').innerHTML = `${newSession.country_name} - ${newSession.session_name} <span class="pulse-dot" style="display:inline-block; margin-left: 4px;"></span>`;
       if (this.onStandingsUpdate) this.onStandingsUpdate([]);
       if (this.onRadioUpdate) this.onRadioUpdate([]);
       if (this.onTrackPathLoaded) this.onTrackPathLoaded([]); // clear canvas

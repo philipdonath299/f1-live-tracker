@@ -48,7 +48,7 @@ const Calendar = {
       
       item.innerHTML = `
         <div class="calendar-info">
-          <span class="race-name">${session.meeting_name} ${session.session_name === 'Sprint' ? '(Sprint)' : ''}</span>
+          <span class="race-name">${session.country_name} ${session.session_name === 'Sprint' ? '(Sprint)' : ''}</span>
           <span class="circuit-name">${session.location || 'TBA'}</span>
         </div>
         <div class="calendar-date">${formattedDate}</div>
