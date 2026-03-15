@@ -173,3 +173,65 @@
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* --- Calendar List --- */
+.calendar-list {
+  flex-grow: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.calendar-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  animation: slideInRight 0.3s ease forwards;
+  opacity: 0;
+}
+
+.calendar-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  border-color: var(--neon-red);
+}
+
+.calendar-item.active-session {
+  border-left: 4px solid var(--neon-red);
+  background: rgba(225, 6, 0, 0.1);
+}
+
+.calendar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendar-info .race-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.calendar-info .circuit-name {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.calendar-date {
+  font-family: 'Space Grotesk', monospace;
+  font-size: 0.85rem;
+  color: var(--neon-blue);
+  background: rgba(0, 210, 190, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}

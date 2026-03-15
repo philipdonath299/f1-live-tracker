@@ -54,6 +54,10 @@
         <i data-lucide="radio"></i>
         <span>Radio</span>
       </button>
+      <button class="tab-btn" data-tab="calendar">
+        <i data-lucide="calendar"></i>
+        <span>Calendar</span>
+      </button>
     </nav>
 
     <!-- Content Panels -->
@@ -90,6 +94,15 @@
       </div>
     </div>
 
+    <div class="tab-content" id="calendar-tab">
+      <div class="panel glass">
+        <h2>Season Calendar</h2>
+        <div class="calendar-list" id="calendar-list">
+          <div class="loading-state">Loading sessions...</div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Scripts -->
@@ -97,6 +110,7 @@
   <script src="js/trackMap.js"></script>
   <script src="js/standingsBoard.js"></script>
   <script src="js/radioFeed.js"></script>
+  <script src="js/calendar.js"></script>
   <script src="js/app.js"></script>
   <script>
     lucide.createIcons();

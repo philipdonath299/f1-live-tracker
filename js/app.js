@@ -41,6 +41,7 @@ async function initApp() {
     TrackMap.init();
     StandingsBoard.init();
     RadioFeed.init();
+    Calendar.init();
     
     // Start data loops
     F1API.startPolling();

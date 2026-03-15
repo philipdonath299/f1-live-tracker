@@ -174,6 +174,36 @@ const F1API = {
     // Poll every 5 seconds limits API hits
     this.pollInterval = setInterval(() => this.pollData(), 5000);
   },
+
+  async switchSession(newSession) {
+      console.log("Switching to session:", newSession.meeting_name);
+      
+      // 1. Stop current polling
+      if (this.pollInterval) {
+          clearInterval(this.pollInterval);
+          this.pollInterval = null;
+      }
+      
+      // 2. Clear Caches
+      this.session = newSession;
+      this.drivers = [];
+      this.positions = {};
+      this.radios = [];
+      this.trackPoints = [];
+      
+      // 3. Clear UI immediately
+      document.getElementById('session-name').innerHTML = `${newSession.meeting_name} <span class="pulse-dot" style="display:inline-block; margin-left: 4px;"></span>`;
+      if (this.onStandingsUpdate) this.onStandingsUpdate([]);
+      if (this.onRadioUpdate) this.onRadioUpdate([]);
+      if (this.onTrackPathLoaded) this.onTrackPathLoaded([]); // clear canvas
+      
+      // 4. Fetch new baseline info
+      await this.fetchDrivers();
+      await this.loadTrackPath();
+      
+      // 5. Restart polling for the new session
+      this.startPolling();
+  },
   
   // --- Demo Fallback Logic below ---
   _loadMockDrivers() {
