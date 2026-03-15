@@ -43,6 +43,14 @@ async function initApp() {
     RadioFeed.init();
     Calendar.init();
     
+    // Bind Weather HUD update
+    F1API.onWeatherUpdate = (data) => {
+        if (!data) return;
+        document.getElementById('w-air').textContent = data.air_temperature !== null ? `${data.air_temperature}°C` : '--°C';
+        document.getElementById('w-track').textContent = data.track_temperature !== null ? `${data.track_temperature}°C` : '--°C';
+        document.getElementById('w-hum').textContent = data.humidity !== null ? `${data.humidity}%` : '--%';
+    };
+    
     // Start data loops
     F1API.startPolling();
     

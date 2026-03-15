@@ -111,20 +111,31 @@ const F1API = {
             // Fetch radios
             const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`);
             const radioData = await radioRes.json();
+            
+            // Fetch Weather
+            const weatherRes = await fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}&date>=${start_time}`);
+            const weatherData = await weatherRes.json();
+            
+            // Fetch Intervals (Gaps)
+            const intRes = await fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${start_time}`);
+            const intData = await intRes.json();
 
             if (posData && posData.length > 0) {
-                const formatted = this._formatStandings(posData, telData);
+                const formatted = this._formatStandings(posData, telData, intData);
                 if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
             }
 
             if (locData && locData.length > 0) {
-                // Merge telemetry into locations
                 const enhancedLoc = this._mergeTelemetry(locData, telData);
                 if (this.onTrackUpdate) this.onTrackUpdate(enhancedLoc, this.drivers);
             }
 
             if (radioData && radioData.length > 0) {
                 this._processRadios(radioData);
+            }
+            
+            if (weatherData && weatherData.length > 0) {
+                if (this.onWeatherUpdate) this.onWeatherUpdate(weatherData[weatherData.length - 1]);
             }
         } else {
             console.log("Session is past, doing one-time historical fetch");
@@ -136,13 +147,23 @@ const F1API = {
             const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`);
             const radioData = await radioRes.json();
             
+            const weatherRes = await fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}`);
+            const weatherData = await weatherRes.json();
+            
+            const intRes = await fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}`);
+            const intData = await intRes.json();
+            
             if (posData && posData.length > 0) {
-                const formatted = this._formatStandings(posData, []);
+                const formatted = this._formatStandings(posData, [], intData);
                 if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
             }
             
             if (radioData && radioData.length > 0) {
                 this._processRadios(radioData);
+            }
+            
+            if (weatherData && weatherData.length > 0) {
+                if (this.onWeatherUpdate) this.onWeatherUpdate(weatherData[weatherData.length - 1]);
             }
             
             document.getElementById('session-name').innerHTML = `${this.session.country_name} - ${this.session.session_name} <span style="font-size:0.7rem; color: #888; margin-left: 6px;">(FINAL)</span>`;
@@ -155,7 +176,7 @@ const F1API = {
     }
   },
   
-  _formatStandings(positions, telemetryData) {
+  _formatStandings(positions, telemetryData, intData) {
       // API returns multiple entries per driver over time. Get latest position
       const latestPos = {};
       positions.forEach(p => {
@@ -169,15 +190,24 @@ const F1API = {
           });
       }
       
+      const latestInt = {};
+      if (intData) {
+          intData.forEach(i => {
+              latestInt[i.driver_number] = i;
+          });
+      }
+      
       const merged = Object.keys(latestPos).map(dNum => {
           const p = latestPos[dNum];
           const t = latestTel[dNum] || {};
+          const i = latestInt[dNum] || {};
           const driver = this.drivers.find(d => d.driver_number == dNum);
           return {
               ...(driver || { full_name: `Driver ${dNum}`, team_colour: "888" }),
               position: p.position,
               speed: t.speed || 0,
-              gear: t.n_gear || 0
+              gear: t.n_gear || 0,
+              gap: i.gap_to_leader || null 
           };
       });
       
@@ -249,6 +279,7 @@ const F1API = {
       if (this.onStandingsUpdate) this.onStandingsUpdate([]);
       if (this.onRadioUpdate) this.onRadioUpdate([]);
       if (this.onTrackPathLoaded) this.onTrackPathLoaded([]); // clear canvas
+      if (this.onWeatherUpdate) this.onWeatherUpdate(null);
       
       // 4. Fetch new baseline info
       await this.fetchDrivers();

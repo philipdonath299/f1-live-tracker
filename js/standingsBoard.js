@@ -32,10 +32,14 @@ const StandingsBoard = {
       row.className = 'driver-row';
       row.style.borderLeftColor = color;
       
-      // Calculate simulated gap for demo if not provided
+      // Use real gap interval if available, otherwise just show Leader or fallback
       let gapStr = "Leader";
       if (position > 1) {
-        gapStr = `+${(position * 2.3).toFixed(3)}`; // Fake gap
+          if (driver.gap !== undefined && driver.gap !== null) {
+              gapStr = `+${driver.gap}s`;
+          } else {
+             gapStr = `+${(position * 2.3).toFixed(3)}`; // Fake gap fallback just in case
+          }
       }
 
       row.innerHTML = `

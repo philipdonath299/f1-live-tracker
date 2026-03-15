@@ -65,6 +65,18 @@
       <div class="panel glass">
         <h2>Live Track Map</h2>
         <div class="track-container" id="track-map-container">
+          <!-- Glass HUD overlay for Live Weather -->
+          <div class="weather-hud glass">
+             <div class="weather-item">
+               <i data-lucide="cloud"></i> <span id="w-air">--°C</span>
+             </div>
+             <div class="weather-item">
+               <i data-lucide="sun"></i> <span id="w-track">--°C</span>
+             </div>
+             <div class="weather-item">
+               <i data-lucide="droplets"></i> <span id="w-hum">--%</span>
+             </div>
+          </div>
           <!-- Canvas will be injected here -->
           <canvas id="trackCanvas"></canvas>
         </div>
