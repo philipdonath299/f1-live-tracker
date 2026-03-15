@@ -263,3 +263,71 @@
   height: 14px;
   color: var(--neon-blue);
 }
+
+/* --- Race Control Banner --- */
+.race-control-banner {
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.race-control-banner.hidden {
+  display: none;
+}
+
+.rc-flag {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--text-muted);
+  color: #000;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+}
+
+.rc-flag.yellow { background: var(--neon-yellow); }
+.rc-flag.red { background: var(--neon-red); color: white; }
+.rc-flag.green { background: #00d2be; color: black; }
+.rc-flag.double-yellow { background: var(--neon-yellow); border: 2px solid orange;}
+
+.rc-message {
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* --- Tire Badges --- */
+.tire-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  font-family: 'Space Grotesk', monospace;
+  font-weight: bold;
+  color: #000;
+  margin-right: 6px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+.tire-badge.SOFT { background: #ff2d2d; color: #fff; }
+.tire-badge.MEDIUM { background: #e3c422; }
+.tire-badge.HARD { background: #ffffff; }
+.tire-badge.INTERMEDIATE { background: #39b54a; color: #fff; }
+.tire-badge.WET { background: #00a0de; color: #fff; }
+
+.tire-age {
+  font-size: 0.7rem;
+  color: var(--neon-blue);
+}

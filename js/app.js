@@ -51,6 +51,23 @@ async function initApp() {
         document.getElementById('w-hum').textContent = data.humidity !== null ? `${data.humidity}%` : '--%';
     };
     
+    // Bind Race Control update
+    F1API.onRaceControlUpdate = (data) => {
+        const banner = document.getElementById('race-control-banner');
+        if (!data || !data.flag) {
+            banner.classList.add('hidden');
+            return;
+        }
+        
+        banner.classList.remove('hidden');
+        const flagEl = document.getElementById('rc-flag');
+        const msgEl = document.getElementById('rc-message');
+        
+        flagEl.textContent = data.flag;
+        flagEl.className = `rc-flag ${data.flag.toLowerCase().replace(' ', '-')}`;
+        msgEl.textContent = data.message || `Sector ${data.sector} Incident`;
+    };
+    
     // Start data loops
     F1API.startPolling();
     

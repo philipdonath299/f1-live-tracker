@@ -48,6 +48,7 @@ const StandingsBoard = {
           <span class="name">${driver.full_name}</span>
           <span class="team" style="color: ${color}">${driver.team_name || 'N/A'}</span>
           <span class="telemetry" style="font-size: 0.7rem; color: #aaa; margin-top:2px;">
+            ${driver.tire_compound ? `<span class="tire-badge ${driver.tire_compound}">${driver.tire_compound.charAt(0)}</span> <span class="tire-age">L${driver.tire_age}</span> | ` : ''}
             ${driver.speed ? `SPD: ${driver.speed}km/h` : ''} ${driver.gear ? `| Gear: ${driver.gear}` : ''}
           </span>
         </div>

@@ -119,9 +119,17 @@ const F1API = {
             // Fetch Intervals (Gaps)
             const intRes = await fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${start_time}`);
             const intData = await intRes.json();
+            
+            // Fetch Race Control
+            const rcRes = await fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}&date>=${start_time}`);
+            const rcData = await rcRes.json();
+            
+            // Fetch Stints (Tires)
+            const stintRes = await fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`); // Need all stints to get latest tire
+            const stintData = await stintRes.json();
 
             if (posData && posData.length > 0) {
-                const formatted = this._formatStandings(posData, telData, intData);
+                const formatted = this._formatStandings(posData, telData, intData, stintData);
                 if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
             }
 
@@ -136,6 +144,10 @@ const F1API = {
             
             if (weatherData && weatherData.length > 0) {
                 if (this.onWeatherUpdate) this.onWeatherUpdate(weatherData[weatherData.length - 1]);
+            }
+            
+            if (rcData && rcData.length > 0) {
+                if (this.onRaceControlUpdate) this.onRaceControlUpdate(rcData[rcData.length - 1]);
             }
         } else {
             console.log("Session is past, doing one-time historical fetch");
@@ -153,8 +165,14 @@ const F1API = {
             const intRes = await fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}`);
             const intData = await intRes.json();
             
+            const rcRes = await fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}`);
+            const rcData = await rcRes.json();
+            
+            const stintRes = await fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`);
+            const stintData = await stintRes.json();
+            
             if (posData && posData.length > 0) {
-                const formatted = this._formatStandings(posData, [], intData);
+                const formatted = this._formatStandings(posData, [], intData, stintData);
                 if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
             }
             
@@ -164,6 +182,16 @@ const F1API = {
             
             if (weatherData && weatherData.length > 0) {
                 if (this.onWeatherUpdate) this.onWeatherUpdate(weatherData[weatherData.length - 1]);
+            }
+            
+            if (rcData && rcData.length > 0) {
+                if (this.onRaceControlUpdate) {
+                    // Send the very last relevant flag message
+                    const flagMsgs = rcData.filter(m => m.flag !== null);
+                    if (flagMsgs.length > 0) {
+                         this.onRaceControlUpdate(flagMsgs[flagMsgs.length - 1]);
+                    }
+                }
             }
             
             document.getElementById('session-name').innerHTML = `${this.session.country_name} - ${this.session.session_name} <span style="font-size:0.7rem; color: #888; margin-left: 6px;">(FINAL)</span>`;
@@ -176,7 +204,7 @@ const F1API = {
     }
   },
   
-  _formatStandings(positions, telemetryData, intData) {
+  _formatStandings(positions, telemetryData, intData, stintData) {
       // API returns multiple entries per driver over time. Get latest position
       const latestPos = {};
       positions.forEach(p => {
@@ -197,17 +225,30 @@ const F1API = {
           });
       }
       
+      const latestStints = {};
+      if (stintData) {
+          // Stints are arrays of pit stops. Get the highest stint_number per driver
+          stintData.forEach(s => {
+              if (!latestStints[s.driver_number] || s.stint_number > latestStints[s.driver_number].stint_number) {
+                  latestStints[s.driver_number] = s;
+              }
+          });
+      }
+      
       const merged = Object.keys(latestPos).map(dNum => {
           const p = latestPos[dNum];
           const t = latestTel[dNum] || {};
           const i = latestInt[dNum] || {};
+          const s = latestStints[dNum] || {};
           const driver = this.drivers.find(d => d.driver_number == dNum);
           return {
               ...(driver || { full_name: `Driver ${dNum}`, team_colour: "888" }),
               position: p.position,
               speed: t.speed || 0,
               gear: t.n_gear || 0,
-              gap: i.gap_to_leader || null 
+              gap: i.gap_to_leader || null,
+              tire_compound: s.compound || null,
+              tire_age: s.tyre_age_at_start ? (p.position >= 1 ? 1 : 0) /* Needs deeper lap logic to get exactly L12, but we simplify visually to compound + age */ : null 
           };
       });
       
@@ -280,6 +321,7 @@ const F1API = {
       if (this.onRadioUpdate) this.onRadioUpdate([]);
       if (this.onTrackPathLoaded) this.onTrackPathLoaded([]); // clear canvas
       if (this.onWeatherUpdate) this.onWeatherUpdate(null);
+      if (this.onRaceControlUpdate) this.onRaceControlUpdate(null);
       
       // 4. Fetch new baseline info
       await this.fetchDrivers();
