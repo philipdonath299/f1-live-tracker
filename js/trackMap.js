@@ -5,10 +5,13 @@ const TrackMap = {
   ctx: null,
   container: null,
   
-  // Track specific (Hardcoded to a generic oval for demo if no real track data)
+  // Track geometry
   trackPath: [],
+  minX: 0, maxX: 0,
+  minY: 0, maxY: 0,
   width: 0,
   height: 0,
+  padding: 40,
 
   init() {
     console.log("Initializing Track Map...");
@@ -18,6 +21,7 @@ const TrackMap = {
     
     // Bind updates
     F1API.onTrackUpdate = this.updatePositions.bind(this);
+    F1API.onTrackPathLoaded = this.loadTrackPath.bind(this);
     
     // Handle resize
     window.addEventListener('resize', this.resize.bind(this));
@@ -44,53 +48,90 @@ const TrackMap = {
     this.drawBackground();
   },
 
+  loadTrackPath(points) {
+    this.trackPath = points;
+    if (!points || points.length === 0) return;
+    
+    // Find bounds to scale track to fit canvas
+    this.minX = Math.min(...points.map(p => p.x));
+    this.maxX = Math.max(...points.map(p => p.x));
+    this.minY = Math.min(...points.map(p => p.y));
+    this.maxY = Math.max(...points.map(p => p.y));
+    
+    this.drawBackground();
+  },
+
+  mapToCanvas(x, y) {
+    const rangeX = this.maxX - this.minX;
+    const rangeY = this.maxY - this.minY;
+    
+    if (rangeX === 0 || rangeY === 0) return { x: this.width/2, y: this.height/2 };
+
+    // Scale while preserving aspect ratio
+    const scaleX = (this.width - this.padding * 2) / rangeX;
+    const scaleY = (this.height - this.padding * 2) / rangeY;
+    const scale = Math.min(scaleX, scaleY);
+    
+    // Center track in the view
+    const scaledWidth = rangeX * scale;
+    const scaledHeight = rangeY * scale;
+    const offsetX = (this.width - scaledWidth) / 2;
+    const offsetY = (this.height - scaledHeight) / 2;
+    
+    // Invert Y axis because canvas 0,0 is top-left, but F1 coordinates 0,0 is usually cartesian bottom-left
+    const cx = (x - this.minX) * scale + offsetX;
+    const cy = this.height - ((y - this.minY) * scale + offsetY);
+    
+    return { x: cx, y: cy };
+  },
+
   drawBackground() {
     this.ctx.clearRect(0, 0, this.width, this.height);
     
-    // Draw generic racing circuit
+    if (this.trackPath.length === 0) {
+        this.ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        this.ctx.font = '14px "Space Grotesk", sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText("Generating circuit layout...", this.width / 2, this.height / 2);
+        return;
+    }
+
+    // Draw track circuit outline
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
-    this.ctx.lineWidth = 8;
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    
-    const cx = this.width / 2;
-    const cy = this.height / 2;
-    const rx = Math.min(this.width, this.height) * 0.4;
-    const ry = Math.min(this.width, this.height) * 0.25;
+    this.ctx.lineWidth = 6;
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     
     this.ctx.beginPath();
-    this.ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
-    this.ctx.stroke();
-    
-    // "Finish line"
-    this.ctx.lineWidth = 4;
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    this.ctx.beginPath();
-    this.ctx.moveTo(cx + rx - 10, cy);
-    this.ctx.lineTo(cx + rx + 10, cy);
+    this.trackPath.forEach((p, idx) => {
+        const coords = this.mapToCanvas(p.x, p.y);
+        if (idx === 0) {
+            this.ctx.moveTo(coords.x, coords.y);
+        } else {
+            this.ctx.lineTo(coords.x, coords.y);
+        }
+    });
     this.ctx.stroke();
   },
 
-  updatePositions(driversData) {
+  updatePositions(locData, drivers) {
     this.drawBackground();
     
-    if (!driversData || driversData.length === 0) return;
+    if (!locData || locData.length === 0 || this.trackPath.length === 0) return;
     
-    const cx = this.width / 2;
-    const cy = this.height / 2;
-    const rx = Math.min(this.width, this.height) * 0.4;
-    const ry = Math.min(this.width, this.height) * 0.25;
+    // API returns multiple location hits per driver. Only plot the single most recent one.
+    const latestLoc = {};
+    locData.forEach(l => {
+        // Since locData is ordered by date (or we can just override to keep the last one seen)
+        latestLoc[l.driver_number] = l;
+    });
 
-    // Simulate positions around track based on array index for demo
-    driversData.forEach((driver, idx) => {
-      // Offset by index to spread them out
-      const progress = (idx / driversData.length) * Math.PI * 2;
+    Object.keys(latestLoc).forEach(dNum => {
+      const l = latestLoc[dNum];
+      const driver = drivers.find(d => d.driver_number == dNum) || { driver_number: dNum, team_colour: '888' };
       
-      // Calculate x,y on ellipse
-      const x = cx + rx * Math.cos(progress);
-      const y = cy + ry * Math.sin(progress);
-      
-      this.drawDriverDot(driver, x, y);
+      const coords = this.mapToCanvas(l.x, l.y);
+      this.drawDriverDot(driver, coords.x, coords.y);
     });
   },
 
@@ -110,19 +151,16 @@ const TrackMap = {
     // Reset shadow
     this.ctx.shadowBlur = 0;
     
-    // Label tag
-    this.ctx.fillStyle = '#fff';
-    this.ctx.font = 'bold 10px "Space Grotesk", sans-serif';
-    this.ctx.textAlign = 'center';
-    
     // Driver Number Background
-    this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    this.ctx.fillStyle = 'rgba(0,0,0,0.85)';
     this.ctx.beginPath();
-    this.ctx.roundRect(x - 10, y + 8, 20, 14, 4);
+    this.ctx.roundRect(x - 10, y + 10, 20, 14, 4);
     this.ctx.fill();
     
     // Driver Number Text
     this.ctx.fillStyle = '#fff';
-    this.ctx.fillText(driver.driver_number, x, y + 19);
+    this.ctx.font = 'bold 10px "Space Grotesk", sans-serif';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText(driver.driver_number, x, y + 21);
   }
 };
