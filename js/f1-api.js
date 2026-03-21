@@ -66,16 +66,19 @@ const F1API = {
       if (!this.session || this.drivers.length === 0) return;
       
       try {
-          // Take Max Verstappen or the first driver
-          const firstDriver = this.drivers[0].driver_number;
+          // Prefer driver #1 (Verstappen) or fall back to first in list
+          const preferred = this.drivers.find(d => d.driver_number === 1) || this.drivers[0];
+          const firstDriver = preferred.driver_number;
           
-          // Fetch up to 4000 points to build the track circuit lines (represents a few solid laps)
-          const res = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${firstDriver}`);
+          // Limit to 3000 rows at the API level so we don't download 34k records
+          const res = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${firstDriver}&limit=3000`);
           const data = await res.json();
-          this.trackPoints = data.slice(0, 4000).map(d => ({ x: d.x, y: d.y }));
+          this.trackPoints = data.map(d => ({ x: d.x, y: d.y }));
           
           if (this.onTrackPathLoaded && this.trackPoints.length > 0) {
               this.onTrackPathLoaded(this.trackPoints);
+          } else {
+              console.warn("Track path returned 0 points");
           }
       } catch (e) {
           console.warn("Failed to build baseline track path", e);
@@ -88,41 +91,35 @@ const F1API = {
     if (this.session) {
       try {
         const now = new Date();
-        const sessionStart = new Date(this.session.date_start);
-        const isLive = (now - sessionStart) < (4 * 60 * 60 * 1000); // Assume live if started less than 4 hours ago
+        // Compare against date_end (not date_start) so a 2-hour race isn't
+        // treated as "live" for hours after it finishes.
+        // A session is live if it ended less than 30 minutes ago.
+        const sessionEnd = new Date(this.session.date_end);
+        const isLive = (now - sessionEnd) < (30 * 60 * 1000);
         
         if (isLive) {
             const start_time = new Date(now.getTime() - 60000).toISOString(); 
             const recent_loc = new Date(now.getTime() - 10000).toISOString(); 
             
-            const posRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${start_time}`);
-            const posData = await posRes.json();
-            // Fetch locations
-            const locRes = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&date>=${recent_loc}`);
-            const locData = await locRes.json();
-            
-            // Fetch car telemetry (Speed, RPM, Gear)
-            const telRes = await fetch(`${API_BASE_URL}/car_data?session_key=${this.session.session_key}&date>=${recent_loc}`);
-            const telData = await telRes.json();
+            // Run all live fetches concurrently for speed
+            const [posRes, locRes, telRes, radioRes, weatherRes, intRes, rcRes, stintRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${start_time}`),
+                fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&date>=${recent_loc}`),
+                fetch(`${API_BASE_URL}/car_data?session_key=${this.session.session_key}&date>=${recent_loc}`),
+                fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`),
+                fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}&date>=${start_time}`),
+                fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${start_time}`),
+                fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}&date>=${start_time}`),
+                fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`)
+            ]);
 
-            // Fetch radios
-            const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`);
+            const posData = await posRes.json();
+            const locData = await locRes.json();
+            const telData = await telRes.json();
             const radioData = await radioRes.json();
-            
-            // Fetch Weather
-            const weatherRes = await fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}&date>=${start_time}`);
             const weatherData = await weatherRes.json();
-            
-            // Fetch Intervals (Gaps)
-            const intRes = await fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${start_time}`);
             const intData = await intRes.json();
-            
-            // Fetch Race Control
-            const rcRes = await fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}&date>=${start_time}`);
             const rcData = await rcRes.json();
-            
-            // Fetch Stints (Tires)
-            const stintRes = await fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`); // Need all stints to get latest tire
             const stintData = await stintRes.json();
 
             if (posData && posData.length > 0) {
