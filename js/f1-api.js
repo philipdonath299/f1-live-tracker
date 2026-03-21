@@ -23,12 +23,12 @@ const F1API = {
     
     // 1. Get latest session
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions`);
+      const response = await fetch(`${API_BASE_URL}/sessions?session_key=latest`);
       const sessions = await response.json();
       
       if (sessions && sessions.length > 0) {
-        // Get most recent session (qualifying, race, practice)
-        this.session = sessions[sessions.length - 1];
+        // Get most recent session
+        this.session = sessions[0];
         document.getElementById('session-name').innerHTML = `${this.session.country_name} - ${this.session.session_name} <span class="pulse-dot" style="display:inline-block; margin-left: 4px;"></span>`;
         console.log("Session loaded:", this.session);
       } else {
@@ -69,13 +69,10 @@ const F1API = {
           // Take Max Verstappen or the first driver
           const firstDriver = this.drivers[0].driver_number;
           
-          // Fetch the first 2 minutes of the session for this driver to build the track circuit lines
-          const sessionStart = new Date(this.session.date_start);
-          const endQuery = new Date(sessionStart.getTime() + (2 * 60000)).toISOString();
-          
-          const res = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${firstDriver}&date<=${endQuery}`);
+          // Fetch up to 4000 points to build the track circuit lines (represents a few solid laps)
+          const res = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${firstDriver}`);
           const data = await res.json();
-          this.trackPoints = data.map(d => ({ x: d.x, y: d.y }));
+          this.trackPoints = data.slice(0, 4000).map(d => ({ x: d.x, y: d.y }));
           
           if (this.onTrackPathLoaded && this.trackPoints.length > 0) {
               this.onTrackPathLoaded(this.trackPoints);
@@ -153,22 +150,21 @@ const F1API = {
             console.log("Session is past, doing one-time historical fetch");
             if (this.pollInterval) clearInterval(this.pollInterval);
             
-            const posRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}`);
+            // Execute all API requests concurrently to vastly speed up load time
+            const [posRes, radioRes, weatherRes, intRes, rcRes, stintRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}`),
+                fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`),
+                fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}`),
+                fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}`),
+                fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}`),
+                fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`)
+            ]);
+
             const posData = await posRes.json();
-            
-            const radioRes = await fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`);
             const radioData = await radioRes.json();
-            
-            const weatherRes = await fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}`);
             const weatherData = await weatherRes.json();
-            
-            const intRes = await fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}`);
             const intData = await intRes.json();
-            
-            const rcRes = await fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}`);
             const rcData = await rcRes.json();
-            
-            const stintRes = await fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`);
             const stintData = await stintRes.json();
             
             if (posData && posData.length > 0) {
