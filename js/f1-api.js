@@ -67,11 +67,7 @@ const F1API = {
     if (!this.session || this.drivers.length === 0) return;
     
     try {
-      // Use a 6-minute window starting from session start to trace the circuit layout.
-      // This avoids downloading 34k+ rows (the entire session) while covering ~1 lap.
-      const sessionStart = new Date(this.session.date_start);
-      const windowEnd = new Date(sessionStart.getTime() + 6 * 60 * 1000).toISOString();
-      const windowStart = sessionStart.toISOString();
+      // Fetch baseline track path using location history.
 
       // Prefer driver #1 or fall back to first in list
       const preferred = this.drivers.find(d => d.driver_number === 1) || this.drivers[0];
