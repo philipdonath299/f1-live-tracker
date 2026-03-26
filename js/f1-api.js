@@ -134,21 +134,27 @@ const F1API = {
         const start_time = new Date(now.getTime() - 60000).toISOString(); 
         const recent_loc  = new Date(now.getTime() - 10000).toISOString(); 
         
-        // All live fetches run concurrently
-        const [posRes, locRes, telRes, radioRes, weatherRes, intRes, rcRes, stintRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${start_time}`),
-          fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&date>=${recent_loc}`),
-          fetch(`${API_BASE_URL}/car_data?session_key=${this.session.session_key}&date>=${recent_loc}`),
-          fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`),
-          fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}&date>=${start_time}`),
-          fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${start_time}`),
-          fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}&date>=${start_time}`),
-          fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`)
-        ]);
+        const safeFetchList = async (urls) => {
+          return Promise.all(urls.map(async url => {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) return [];
+              return await res.json();
+            } catch (e) {
+              return [];
+            }
+          }));
+        };
 
-        const [posData, locData, telData, radioData, weatherData, intData, rcData, stintData] = await Promise.all([
-          posRes.json(), locRes.json(), telRes.json(), radioRes.json(),
-          weatherRes.json(), intRes.json(), rcRes.json(), stintRes.json()
+        const [posData, locData, telData, radioData, weatherData, intData, rcData, stintData] = await safeFetchList([
+          `${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${start_time}`,
+          `${API_BASE_URL}/location?session_key=${this.session.session_key}&date>=${recent_loc}`,
+          `${API_BASE_URL}/car_data?session_key=${this.session.session_key}&date>=${recent_loc}`,
+          `${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${start_time}`,
+          `${API_BASE_URL}/weather?session_key=${this.session.session_key}&date>=${start_time}`,
+          `${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${start_time}`,
+          `${API_BASE_URL}/race_control?session_key=${this.session.session_key}&date>=${start_time}`,
+          `${API_BASE_URL}/stints?session_key=${this.session.session_key}`
         ]);
 
         if (posData && posData.length > 0) {
@@ -180,18 +186,25 @@ const F1API = {
         
         // All historical fetches run concurrently. 
         // We fetch the full race data since these endpoints (unlike location/car_data) are only ~60KB.
-        const [posRes, radioRes, weatherRes, intRes, rcRes, stintRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`)
-        ]);
+        const safeFetchList = async (urls) => {
+          return Promise.all(urls.map(async url => {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) return [];
+              return await res.json();
+            } catch (e) {
+              return [];
+            }
+          }));
+        };
 
-        const [posData, radioData, weatherData, intData, rcData, stintData] = await Promise.all([
-          posRes.json(), radioRes.json(), weatherRes.json(),
-          intRes.json(), rcRes.json(), stintRes.json()
+        const [posData, radioData, weatherData, intData, rcData, stintData] = await safeFetchList([
+          `${API_BASE_URL}/position?session_key=${this.session.session_key}`,
+          `${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`,
+          `${API_BASE_URL}/weather?session_key=${this.session.session_key}`,
+          `${API_BASE_URL}/intervals?session_key=${this.session.session_key}`,
+          `${API_BASE_URL}/race_control?session_key=${this.session.session_key}`,
+          `${API_BASE_URL}/stints?session_key=${this.session.session_key}`
         ]);
         
         if (Array.isArray(posData) && posData.length > 0) {
