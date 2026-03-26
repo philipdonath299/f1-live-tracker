@@ -77,6 +77,23 @@ const F1API = {
       const preferred = this.drivers.find(d => d.driver_number === 1) || this.drivers[0];
       const driverNum = preferred.driver_number;
 
+      // 1. Find EXACTLY when this driver was actually on track by checking their first position record
+      let actualStartTimeMs = new Date(this.session.date_start).getTime();
+      
+      const posRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&driver_number=${driverNum}`);
+      const posData = await posRes.json();
+      
+      if (Array.isArray(posData) && posData.length > 0) {
+        // Use the first recorded position minus 2 minutes to ensure we capture a full driving lap
+        actualStartTimeMs = new Date(posData[0].date).getTime() - (2 * 60 * 1000);
+      } else {
+        // Fallback: Just look 60 minutes after the official start (usually when races actually begin after buildup)
+        actualStartTimeMs += 60 * 60 * 1000;
+      }
+
+      const windowStart = new Date(actualStartTimeMs).toISOString();
+      const windowEnd = new Date(actualStartTimeMs + 6 * 60 * 1000).toISOString(); // 6-minute trace
+
       const res = await fetch(
         `${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${driverNum}&date>=${windowStart}&date<=${windowEnd}`
       );
@@ -87,19 +104,14 @@ const F1API = {
         console.log(`Track path loaded: ${this.trackPoints.length} points`);
         this.onTrackPathLoaded(this.trackPoints);
       } else {
-        console.warn("Track path returned 0 points for 6-min window, trying 20 min...");
-        // Fallback: try a longer 20-minute window (some sessions have formation laps)
-        const fallbackEnd = new Date(sessionStart.getTime() + 20 * 60 * 1000).toISOString();
-        const res2 = await fetch(
-          `${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${driverNum}&date>=${windowStart}&date<=${fallbackEnd}`
-        );
-        const data2 = await res2.json();
-        this.trackPoints = Array.isArray(data2) ? data2.map(d => ({ x: d.x, y: d.y })) : [];
+        // Ultimate fallback if still no points, just fetch everything and limit purely to first 3000 points
+        console.warn("Track points still empty with dynamic date window. Trying without date limits.");
+        const res3 = await fetch(`${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${driverNum}`);
+        const data3 = await res3.json();
+        const safeData = Array.isArray(data3) ? data3 : [];
+        this.trackPoints = safeData.slice(0, 3000).map(d => ({ x: d.x, y: d.y }));
         if (this.onTrackPathLoaded && this.trackPoints.length > 0) {
-          console.log(`Track path loaded (fallback): ${this.trackPoints.length} points`);
-          this.onTrackPathLoaded(this.trackPoints);
-        } else {
-          console.warn("Track path still empty after fallback");
+           this.onTrackPathLoaded(this.trackPoints);
         }
       }
     } catch (e) {
@@ -170,17 +182,14 @@ const F1API = {
         document.getElementById('session-name').innerHTML =
           `${this.session.country_name} - ${this.session.session_name} <span style="font-size:0.7rem; color: #888; margin-left: 6px;">(FINAL)</span>`;
         
-        // Use the session end time minus 3 minutes to only get the final lap/standings
-        const sessionEndMs = new Date(this.session.date_end).getTime();
-        const pastStart = new Date(sessionEndMs - 3 * 60 * 1000).toISOString();
-        
-        // All historical fetches run concurrently, filtered by date to prevent massive payload
+        // All historical fetches run concurrently. 
+        // We fetch the full race data since these endpoints (unlike location/car_data) are only ~60KB.
         const [posRes, radioRes, weatherRes, intRes, rcRes, stintRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${pastStart}`),
-          fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${pastStart}`),
-          fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}&date>=${pastStart}`),
-          fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${pastStart}`),
-          fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}&date>=${pastStart}`),
+          fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}`),
+          fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`),
+          fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}`),
+          fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}`),
+          fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}`),
           fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`)
         ]);
 
@@ -189,17 +198,9 @@ const F1API = {
           intRes.json(), rcRes.json(), stintRes.json()
         ]);
         
-        if (posData && posData.length > 0) {
+        if (Array.isArray(posData) && posData.length > 0) {
           const formatted = this._formatStandings(posData, [], intData, stintData);
           if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
-        } else {
-          // Fallback if the last 3 minutes had no position data (e.g. race ended under safety car early)
-          const fallbackRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${new Date(sessionEndMs - 15 * 60 * 1000).toISOString()}`);
-          const fallbackPos = await fallbackRes.json();
-          if (fallbackPos && fallbackPos.length > 0) {
-             const formatted = this._formatStandings(fallbackPos, [], intData, stintData);
-             if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
-          }
         }
         
         if (radioData && radioData.length > 0) this._processRadios(radioData);
