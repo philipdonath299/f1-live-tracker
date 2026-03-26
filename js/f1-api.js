@@ -56,7 +56,7 @@ const F1API = {
     try {
       const res = await fetch(`${API_BASE_URL}/drivers?session_key=${this.session.session_key}`);
       const data = await res.json();
-      this.drivers = data.filter(d => d.driver_number !== null);
+      this.drivers = Array.isArray(data) ? data.filter(d => d.driver_number !== null) : [];
       console.log(`Loaded ${this.drivers.length} drivers`);
     } catch(e) {
       console.error("Error fetching drivers", e);
@@ -81,7 +81,7 @@ const F1API = {
         `${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${driverNum}&date>=${windowStart}&date<=${windowEnd}`
       );
       const data = await res.json();
-      this.trackPoints = data.map(d => ({ x: d.x, y: d.y }));
+      this.trackPoints = Array.isArray(data) ? data.map(d => ({ x: d.x, y: d.y })) : [];
       
       if (this.onTrackPathLoaded && this.trackPoints.length > 0) {
         console.log(`Track path loaded: ${this.trackPoints.length} points`);
@@ -94,7 +94,7 @@ const F1API = {
           `${API_BASE_URL}/location?session_key=${this.session.session_key}&driver_number=${driverNum}&date>=${windowStart}&date<=${fallbackEnd}`
         );
         const data2 = await res2.json();
-        this.trackPoints = data2.map(d => ({ x: d.x, y: d.y }));
+        this.trackPoints = Array.isArray(data2) ? data2.map(d => ({ x: d.x, y: d.y })) : [];
         if (this.onTrackPathLoaded && this.trackPoints.length > 0) {
           console.log(`Track path loaded (fallback): ${this.trackPoints.length} points`);
           this.onTrackPathLoaded(this.trackPoints);
@@ -155,7 +155,7 @@ const F1API = {
         if (weatherData && weatherData.length > 0) {
           if (this.onWeatherUpdate) this.onWeatherUpdate(weatherData[weatherData.length - 1]);
         }
-        if (rcData && rcData.length > 0) {
+        if (Array.isArray(rcData) && rcData.length > 0) {
           if (this.onRaceControlUpdate) this.onRaceControlUpdate(rcData[rcData.length - 1]);
         }
 
@@ -206,7 +206,7 @@ const F1API = {
         if (weatherData && weatherData.length > 0) {
           if (this.onWeatherUpdate) this.onWeatherUpdate(weatherData[weatherData.length - 1]);
         }
-        if (rcData && rcData.length > 0 && this.onRaceControlUpdate) {
+        if (Array.isArray(rcData) && rcData.length > 0 && this.onRaceControlUpdate) {
           const flagMsgs = rcData.filter(m => m.flag !== null);
           if (flagMsgs.length > 0) this.onRaceControlUpdate(flagMsgs[flagMsgs.length - 1]);
         }
@@ -218,16 +218,16 @@ const F1API = {
   
   _formatStandings(positions, telemetryData, intData, stintData) {
     const latestPos = {};
-    positions.forEach(p => { latestPos[p.driver_number] = p; });
+    if (Array.isArray(positions)) positions.forEach(p => { latestPos[p.driver_number] = p; });
     
     const latestTel = {};
-    if (telemetryData) telemetryData.forEach(t => { latestTel[t.driver_number] = t; });
+    if (Array.isArray(telemetryData)) telemetryData.forEach(t => { latestTel[t.driver_number] = t; });
     
     const latestInt = {};
-    if (intData) intData.forEach(i => { latestInt[i.driver_number] = i; });
+    if (Array.isArray(intData)) intData.forEach(i => { latestInt[i.driver_number] = i; });
     
     const latestStints = {};
-    if (stintData) {
+    if (Array.isArray(stintData)) {
       stintData.forEach(s => {
         if (!latestStints[s.driver_number] || s.stint_number > latestStints[s.driver_number].stint_number) {
           latestStints[s.driver_number] = s;
@@ -237,7 +237,7 @@ const F1API = {
 
     // Estimate current lap from the highest lap_number seen in positions
     let currentLap = 0;
-    positions.forEach(p => { if (p.lap_number && p.lap_number > currentLap) currentLap = p.lap_number; });
+    if (Array.isArray(positions)) positions.forEach(p => { if (p.lap_number && p.lap_number > currentLap) currentLap = p.lap_number; });
     
     const merged = Object.keys(latestPos).map(dNum => {
       const p = latestPos[dNum];
@@ -269,7 +269,8 @@ const F1API = {
   
   _mergeTelemetry(locations, telemetry) {
     const latestTel = {};
-    if (telemetry) telemetry.forEach(t => { latestTel[t.driver_number] = t; });
+    if (Array.isArray(telemetry)) telemetry.forEach(t => { latestTel[t.driver_number] = t; });
+    if (!Array.isArray(locations)) return [];
     return locations.map(loc => {
       const t = latestTel[loc.driver_number] || {};
       return { ...loc, speed: t.speed || 0, gear: t.n_gear || 0, rpm: t.rpm || 0 };
@@ -277,6 +278,7 @@ const F1API = {
   },
   
   _processRadios(radios) {
+    if (!Array.isArray(radios)) return;
     let updated = false;
     const existDates = this.radios.map(r => r.date);
     radios.forEach(msg => {

@@ -22,7 +22,9 @@ const Calendar = {
       const data = await response.json();
       
       // Filter out only the main races to keep list clean, sorted by date
-      this.sessions = data.filter(s => s.session_name === 'Race' || s.session_name === 'Sprint').sort((a,b) => new Date(a.date_start) - new Date(b.date_start));
+      this.sessions = Array.isArray(data) 
+        ? data.filter(s => s.session_name === 'Race' || s.session_name === 'Sprint').sort((a,b) => new Date(a.date_start) - new Date(b.date_start))
+        : [];
       
     } catch (e) {
       console.error("Failed to fetch calendar", e);
