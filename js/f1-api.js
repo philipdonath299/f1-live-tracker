@@ -221,6 +221,10 @@ const F1API = {
         }
       });
     }
+
+    // Estimate current lap from the highest lap_number seen in positions
+    let currentLap = 0;
+    positions.forEach(p => { if (p.lap_number && p.lap_number > currentLap) currentLap = p.lap_number; });
     
     const merged = Object.keys(latestPos).map(dNum => {
       const p = latestPos[dNum];
@@ -228,6 +232,14 @@ const F1API = {
       const i = latestInt[dNum] || {};
       const s = latestStints[dNum] || {};
       const driver = this.drivers.find(d => d.driver_number == dNum);
+
+      // Tire age = current lap minus the lap the stint started (lap_start is 1-indexed)
+      let tireAge = null;
+      if (s.lap_start != null) {
+        const refLap = currentLap > 0 ? currentLap : (p.lap_number || 0);
+        tireAge = Math.max(0, refLap - s.lap_start + 1);
+      }
+
       return {
         ...(driver || { full_name: `Driver ${dNum}`, team_colour: "888" }),
         position:      p.position,
@@ -235,7 +247,7 @@ const F1API = {
         gear:          t.n_gear   || 0,
         gap:           i.gap_to_leader || null,
         tire_compound: s.compound || null,
-        tire_age:      s.lap_start ? null : null
+        tire_age:      tireAge
       };
     });
     
@@ -259,6 +271,9 @@ const F1API = {
         msg.driver = this.drivers.find(d => d.driver_number == msg.driver_number)
           || { full_name: `Driver ${msg.driver_number}`, team_colour: '888' };
         msg.time = new Date(msg.date).toLocaleTimeString();
+        // OpenF1 returns recording_url (audio file), not a text message
+        msg.audioUrl = msg.recording_url || null;
+        msg.message = msg.message || null; // may be null for audio-only entries
         this.radios.unshift(msg);
         updated = true;
       }

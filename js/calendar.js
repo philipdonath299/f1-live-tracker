@@ -56,8 +56,8 @@ const Calendar = {
       
       item.style.animationDelay = `${idx * 0.05}s`;
       
-      item.addEventListener('click', () => {
-         this.selectSession(session);
+      item.addEventListener('click', (e) => {
+         this.selectSession(session, e);
       });
       
       fragment.appendChild(item);
@@ -66,10 +66,10 @@ const Calendar = {
     this.container.appendChild(fragment);
   },
   
-  selectSession(session) {
+  selectSession(session, e) {
       // Visual update in list
       document.querySelectorAll('.calendar-item').forEach(el => el.classList.remove('active-session'));
-      event.currentTarget.classList.add('active-session');
+      if (e && e.currentTarget) e.currentTarget.classList.add('active-session');
       
       // Switch API Focus
       F1API.switchSession(session);
