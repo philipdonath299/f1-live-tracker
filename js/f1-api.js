@@ -160,7 +160,7 @@ const F1API = {
         }
 
       } else {
-        // Past session - fetch full historical data once, then stop polling
+        // Past session - fetch final few minutes to get the ending standings
         console.log("Session is past, fetching historical data...");
         if (this.pollInterval) {
           clearInterval(this.pollInterval);
@@ -170,13 +170,17 @@ const F1API = {
         document.getElementById('session-name').innerHTML =
           `${this.session.country_name} - ${this.session.session_name} <span style="font-size:0.7rem; color: #888; margin-left: 6px;">(FINAL)</span>`;
         
-        // All historical fetches run concurrently
+        // Use the session end time minus 3 minutes to only get the final lap/standings
+        const sessionEndMs = new Date(this.session.date_end).getTime();
+        const pastStart = new Date(sessionEndMs - 3 * 60 * 1000).toISOString();
+        
+        // All historical fetches run concurrently, filtered by date to prevent massive payload
         const [posRes, radioRes, weatherRes, intRes, rcRes, stintRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}`),
-          fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}`),
+          fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${pastStart}`),
+          fetch(`${API_BASE_URL}/team_radio?session_key=${this.session.session_key}&date>=${pastStart}`),
+          fetch(`${API_BASE_URL}/weather?session_key=${this.session.session_key}&date>=${pastStart}`),
+          fetch(`${API_BASE_URL}/intervals?session_key=${this.session.session_key}&date>=${pastStart}`),
+          fetch(`${API_BASE_URL}/race_control?session_key=${this.session.session_key}&date>=${pastStart}`),
           fetch(`${API_BASE_URL}/stints?session_key=${this.session.session_key}`)
         ]);
 
@@ -188,7 +192,16 @@ const F1API = {
         if (posData && posData.length > 0) {
           const formatted = this._formatStandings(posData, [], intData, stintData);
           if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
+        } else {
+          // Fallback if the last 3 minutes had no position data (e.g. race ended under safety car early)
+          const fallbackRes = await fetch(`${API_BASE_URL}/position?session_key=${this.session.session_key}&date>=${new Date(sessionEndMs - 15 * 60 * 1000).toISOString()}`);
+          const fallbackPos = await fallbackRes.json();
+          if (fallbackPos && fallbackPos.length > 0) {
+             const formatted = this._formatStandings(fallbackPos, [], intData, stintData);
+             if (this.onStandingsUpdate) this.onStandingsUpdate(formatted);
+          }
         }
+        
         if (radioData && radioData.length > 0) this._processRadios(radioData);
         if (weatherData && weatherData.length > 0) {
           if (this.onWeatherUpdate) this.onWeatherUpdate(weatherData[weatherData.length - 1]);
