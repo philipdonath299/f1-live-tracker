@@ -97,10 +97,83 @@
   opacity: 0.9;
 }
 
+.driver-row .timing-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 .driver-row .gap {
   font-family: 'Space Grotesk', monospace;
   font-weight: 600;
+  color: var(--text-main);
+}
+
+.driver-row .last-lap {
+  font-size: 0.75rem;
   color: var(--text-muted);
+  font-family: 'Space Grotesk', monospace;
+}
+
+.driver-row .best-lap {
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 700;
+  color: var(--neon-blue);
+  font-size: 1.1rem;
+}
+
+.driver-row .interval {
+  font-size: 0.7rem;
+  color: #aaa;
+  font-family: 'Space Grotesk', monospace;
+}
+
+.driver-row .timing-top, .driver-row .timing-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.driver-row .sectors {
+  display: flex;
+  gap: 6px;
+  font-size: 0.65rem;
+  font-family: 'Space Grotesk', monospace;
+  margin-top: 4px;
+}
+
+.driver-row .sectors span {
+  background: rgba(255,255,255,0.05);
+  padding: 2px 4px;
+  border-radius: 3px;
+  border-bottom: 2px solid transparent;
+}
+
+.driver-row .sectors span.sector-purple { border-color: #bb33ff; color: #d980ff; }
+.driver-row .sectors span.sector-green  { border-color: #00d2be; color: #66ffef; }
+.driver-row .sectors span.sector-yellow { border-color: #fff200; color: #fff766; }
+
+.driver-row .name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drs-badge {
+  background: #00d2be;
+  color: #000;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  animation: pulse-drs 1s infinite;
+}
+
+@keyframes pulse-drs {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }
 
 /* --- Radio Feed --- */
