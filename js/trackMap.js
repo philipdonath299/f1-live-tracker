@@ -151,13 +151,22 @@ const TrackMap = {
     
     // Outer glow
     this.ctx.shadowBlur = 10;
-    this.ctx.shadowColor = color;
+    this.ctx.shadowColor = driver.drs ? '#00d2be' : color;
     
     // Main dot
     this.ctx.beginPath();
     this.ctx.arc(x, y, 6, 0, Math.PI * 2);
     this.ctx.fillStyle = color;
     this.ctx.fill();
+
+    // DRS Indicator
+    if (driver.drs) {
+        this.ctx.strokeStyle = '#00d2be';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, 9, 0, Math.PI * 2);
+        this.ctx.stroke();
+    }
     
     // Reset shadow
     this.ctx.shadowBlur = 0;
