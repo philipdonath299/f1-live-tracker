@@ -35,13 +35,18 @@ async function initApp() {
   // Try to connect to F1 API
   try {
     DOM.sessionName.textContent = 'Connecting API...';
-    await F1API.initialize();
     
-    // Once API is setup, initialize components
+    // Always initialize components so they can handle loading/demo states
     TrackMap.init();
     StandingsBoard.init();
     RadioFeed.init();
     Calendar.init();
+
+    try {
+        await F1API.initialize();
+    } catch (e) {
+        console.warn("F1API initialization failed, but app will proceed with fallback data", e);
+    }
     
     // Bind Weather HUD update
     F1API.onWeatherUpdate = (data) => {

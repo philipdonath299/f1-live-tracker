@@ -42,6 +42,7 @@ const F1API = {
         console.log("Session loaded:", this.session);
       } else {
         document.getElementById('session-name').textContent = 'Demo Mode';
+        this._loadMockDrivers();
       }
       
       // 2. Fetch drivers (must complete before polling, but is fast)
@@ -56,11 +57,15 @@ const F1API = {
       document.getElementById('session-name').textContent = 'Demo Mode';
       this.session = null; // Ensure we are in demo mode
       this._loadMockDrivers();
+      this.loadTrackPath();
     }
   },
 
   async fetchDrivers() {
-    if (!this.session) return;
+    if (!this.session) {
+        this._loadMockDrivers();
+        return;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/drivers?session_key=${this.session.session_key}`);
       if (res.status === 401 || res.status === 403) {
