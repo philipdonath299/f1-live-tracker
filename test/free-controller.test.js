@@ -20,6 +20,7 @@ test('default page opens free live timing, renders public sectors and approximat
  globalThis.WebSocket=Socket;globalThis.location={href:'http://localhost/',search:''};globalThis.history={replaceState(){}};globalThis.requestAnimationFrame=cb=>{frame=cb;};
  globalThis.fetch=async url=>{
    const p=new URL(url,'http://localhost').searchParams,action=p.get('action');calls.push(action);
+   if(String(url).startsWith('https://livetiming.formula1.com/'))return {ok:true,status:200,json:async()=>({connectionToken:'test-public-token'})};
    if(action==='catalog')return {ok:false,status:401,json:async()=>({error:'OpenF1 live access restricted'})};
    let body;
    if(action==='free-calendar')body={sessions:[],liveConfigured:false};

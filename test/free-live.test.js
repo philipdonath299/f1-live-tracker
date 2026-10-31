@@ -12,7 +12,7 @@ class Socket{
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 async function receive(ws,text){ws.onmessage({data:text});await flush();}
 test('native SignalR negotiates JSON, handles split frames and merges sparse live updates without a token',async()=>{
-  Socket.all=[];const updates=[];const client=new FreeLiveClient({WebSocketImpl:Socket,onView:v=>updates.push(v),now:()=>now,fetchImpl:async()=>{throw new Error('must not poll in direct mode');}});
+  Socket.all=[];const updates=[];const client=new FreeLiveClient({negotiate:false,WebSocketImpl:Socket,onView:v=>updates.push(v),now:()=>now,fetchImpl:async()=>{throw new Error('must not poll in direct mode');}});
   try{
     client.start('direct');const ws=Socket.all[0];ws.onopen();assert.equal(ws.url,'wss://livetiming.formula1.com/signalrcore');assert.equal(ws.sent[0],'{"protocol":"json","version":1}\x1e');
     await receive(ws,'{}\x1e');const subscribe=JSON.parse(ws.sent[1].slice(0,-1));assert.equal(subscribe.target,'Subscribe');assert.ok(!subscribe.arguments[0].includes('CarData.z'));
@@ -24,16 +24,25 @@ test('native SignalR negotiates JSON, handles split frames and merges sparse liv
 });
 test('community fallback preserves upstream age and never labels an old snapshot live',async()=>{
   let requested;
-  const client=new FreeLiveClient({now:()=>now,WebSocketImpl:class{constructor(){throw new Error('must not connect');}},fetchImpl:async url=>{requested=url;return {ok:true,json:async()=>({available:true,snapshot:raw(),asOf:new Date(now-120000).toISOString(),fetchedAt:stamp})};}});
+  const client=new FreeLiveClient({negotiate:false,now:()=>now,WebSocketImpl:class{constructor(){throw new Error('must not connect');}},fetchImpl:async url=>{requested=url;return {ok:true,json:async()=>({available:true,snapshot:raw(),asOf:new Date(now-120000).toISOString(),fetchedAt:stamp})};}});
   try{client.start('community');await flush();assert.equal(requested,'/api/f1?action=free-live');assert.equal(client.getView().phase,'stale');assert.equal(client.getView().rows[0].lastLap,80.1);}finally{client.stop();}
 });
 test('GPS enrichment only combines the same session and fresh samples',()=>{
-  const client=new FreeLiveClient({now:()=>now});client.mode='auto';client.direct.snapshot(raw(),stamp);
+  const client=new FreeLiveClient({negotiate:false,now:()=>now});client.mode='auto';client.direct.snapshot(raw(),stamp);
   let other=raw(999);other.Position={Position:[{Timestamp:stamp,Entries:{1:{X:100,Y:200}}}]};client.community.snapshot(other,stamp);assert.equal(client.getView().locations.length,0);
   other=raw();other.Position={Position:[{Timestamp:stamp,Entries:{1:{X:100,Y:200}}}]};client.community.snapshot(other,stamp);assert.equal(client.getView().locations[0].x,100);
   other.Position.Position[0].Timestamp=new Date(now-60000).toISOString();client.community.snapshot(other,stamp);assert.equal(client.getView().locations.length,0);
 });
 test('provider authorization errors stop direct requests instead of attempting a bypass',async()=>{
-  const client=new FreeLiveClient({WebSocketImpl:Socket,now:()=>now});
+  const client=new FreeLiveClient({negotiate:false,WebSocketImpl:Socket,now:()=>now});
   try{client.start('direct');const ws=Socket.all.at(-1);ws.onopen();await receive(ws,'{"error":"Unauthorized"}\x1e');assert.equal(ws.readyState,3);assert.equal(client.retry,undefined);assert.equal(ws.sent.length,1);}finally{client.stop();}
+});
+test('direct browser connection negotiates its public connection ID and preserves normal browser cookie handling',async()=>{
+ const requests=[];Socket.all=[];
+ const client=new FreeLiveClient({WebSocketImpl:Socket,now:()=>now,fetchImpl:async(url,options)=>{requests.push({url,...options});return {ok:true,status:200,json:async()=>({connectionToken:'public id'})};}});
+ try{client.start('direct');await flush();assert.equal(requests[0].method,'OPTIONS');assert.equal(requests[1].method,'POST');assert.equal(requests[1].credentials,'include');assert.equal(Socket.all[0].url,'wss://livetiming.formula1.com/signalrcore?id=public%20id');}finally{client.stop();}
+});
+test('an unauthorized negotiate response does not open a WebSocket or request paid topics',async()=>{
+ Socket.all=[];let calls=0;const client=new FreeLiveClient({WebSocketImpl:Socket,fetchImpl:async()=>{calls++;return {ok:false,status:401};}});
+ try{client.start('direct');await flush();assert.equal(calls,1);assert.equal(Socket.all.length,0);assert.match(client.health.direct,/restricted/);}finally{client.stop();}
 });

@@ -1,5 +1,5 @@
 import {FreeLiveClient} from '../js/free-live.js';
-import {communitySnapshot,freeCalendar} from '../server/free-sources.js';
+import {freeLiveSnapshot,freeCalendar} from '../server/free-sources.js';
 const direct=new Promise(resolve=>{
   let done=false;
   const finish=result=>{if(done)return;done=true;clearTimeout(timeout);client.stop();resolve(result);};
@@ -9,7 +9,7 @@ const direct=new Promise(resolve=>{
 });
 const results=await Promise.allSettled([
  direct,
- communitySnapshot().then(data=>({source:data.source,available:data.available,asOf:data.asOf,session:data.snapshot?.session?.Name,error:data.error})),
+ freeLiveSnapshot().then(data=>({source:data.source,available:data.available,asOf:data.asOf,session:data.snapshot?.session?.Name,error:data.error,diagnostics:data.diagnostics})),
  freeCalendar(new Date().getUTCFullYear()).then(data=>({source:'Jolpica',available:true,sessions:data.sessions.length}))
 ]);
 for(let index=0;index<results.length;index++){const result=results[index];console.log(JSON.stringify(result.status==='fulfilled'?result.value:{source:['F1 public stream','Community live feed','Jolpica'][index],available:false,error:result.reason?.message}));}

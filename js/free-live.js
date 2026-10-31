@@ -1,8 +1,8 @@
 import {FREE_TOPICS,LiveTimingStore} from './free-model.js';
 const SEPARATOR='\x1e';
 export class FreeLiveClient{
-  constructor({onView=()=>{},onState=()=>{},fetchImpl=globalThis.fetch,WebSocketImpl=globalThis.WebSocket,now=()=>Date.now()}={}){
-    Object.assign(this,{onView,onState,fetchImpl,WebSocketImpl,now});
+  constructor({onView=()=>{},onState=()=>{},fetchImpl=globalThis.fetch,WebSocketImpl=globalThis.WebSocket,now=()=>Date.now(),negotiate=true}={}){
+    Object.assign(this,{onView,onState,fetchImpl,WebSocketImpl,now,negotiate});
     this.direct=new LiveTimingStore();this.community=new LiveTimingStore();this.token=0;this.stopped=true;this.health={direct:'Not connected',community:'Not connected'};
   }
   start(mode='auto'){
@@ -13,7 +13,7 @@ export class FreeLiveClient{
   }
   stop(){
     this.stopped=true;this.token++;clearTimeout(this.retry);clearTimeout(this.pollTimer);clearTimeout(this.handshakeTimer);clearInterval(this.ping);
-    this.abort?.abort();if(this.socket){this.socket.onclose=null;this.socket.onerror=null;try{this.socket.close();}catch{}}
+    clearTimeout(this.negotiateTimer);this.abort?.abort();this.negotiateAbort?.abort();if(this.socket){this.socket.onclose=null;this.socket.onerror=null;try{this.socket.close();}catch{}}
   }
   active(token){return !this.stopped&&token===this.token;}
   status(source,message){this.health[source]=message;this.onState({...this.health});}
@@ -21,7 +21,7 @@ export class FreeLiveClient{
     const now=this.now(),direct=this.direct.view(now),community=this.community.view(now);
     const options=[];
     if(this.mode!=='community'&&direct.session.session_key)options.push({...direct,source:'F1 public stream',sourceId:'direct'});
-    if(this.mode!=='direct'&&community.session.session_key)options.push({...community,source:'Community live feed',sourceId:'community'});
+    if(this.mode!=='direct'&&community.session.session_key)options.push({...community,source:this.communityName||'Community live feed',sourceId:'community'});
     options.sort((a,b)=>Number(b.phase==='live')-Number(a.phase==='live')||(Date.parse(b.session.date_start)||0)-(Date.parse(a.session.date_start)||0)||(Date.parse(b.asOf)||0)-(Date.parse(a.asOf)||0));
     const view=options[0];if(!view)return null;
     if(view.sourceId==='direct'&&community.session.session_key===view.session.session_key){
@@ -33,12 +33,26 @@ export class FreeLiveClient{
     return view;
   }
   emit(){const view=this.getView();if(view)this.onView(view);}
-  connect(token){
+  async connect(token){
     if(!this.active(token))return;
     if(!this.WebSocketImpl){this.status('direct','WebSocket unavailable in this browser');return;}
     this.status('direct','Connecting to public timing');this.buffer='';this.handshaken=false;
-    let ws;
-    try{ws=this.socket=new this.WebSocketImpl('wss://livetiming.formula1.com/signalrcore');}catch{this.reconnect(token);return;}
+    let ws,url='wss://livetiming.formula1.com/signalrcore';
+    if(this.negotiate){
+      this.negotiateAbort=new AbortController();this.negotiateTimer=setTimeout(()=>this.negotiateAbort.abort(),12000);
+      try{
+        const options={credentials:'include',signal:this.negotiateAbort.signal};
+        const preflight=await this.fetchImpl('https://livetiming.formula1.com/signalrcore/negotiate?negotiateVersion=1',{...options,method:'OPTIONS'});
+        if([401,403].includes(preflight.status)){this.status('direct','Provider restricted anonymous negotiation');return;}
+        const response=await this.fetchImpl('https://livetiming.formula1.com/signalrcore/negotiate?negotiateVersion=1',{...options,method:'POST'});
+        if(!this.active(token))return;
+        if([401,403].includes(response.status)){this.status('direct','Provider restricted anonymous negotiation');return;}
+        if(!response.ok)throw new Error('Direct negotiation unavailable');
+        const data=await response.json(),id=data.connectionToken||data.ConnectionToken;if(!id)throw new Error('No public connection token');url+='?id='+encodeURIComponent(id);
+      }catch(error){if(!this.active(token))return;this.status('direct','Direct browser negotiation unavailable; using free fallback');this.reconnect(token);return;}finally{clearTimeout(this.negotiateTimer);}
+    }
+    if(!this.active(token))return;
+    try{ws=this.socket=new this.WebSocketImpl(url);}catch{this.reconnect(token);return;}
     this.handshakeTimer=setTimeout(()=>{if(this.active(token))ws.close();},15000);
     ws.onopen=()=>{if(this.active(token))ws.send(JSON.stringify({protocol:'json',version:1})+SEPARATOR);};
     ws.onmessage=event=>{
@@ -87,7 +101,7 @@ export class FreeLiveClient{
       const response=await this.fetchImpl('/api/f1?action=free-live',{signal:this.abort.signal});
       if(!this.active(token))return;
       const result=await response.json();if(!response.ok||!result.available||!result.snapshot)throw new Error(result.error||'Community feed not available');
-      this.community.snapshot(result.snapshot,result.asOf);const phase=this.community.view(this.now()).phase;
+      this.communityName=result.source||'Community live feed';this.community.snapshot(result.snapshot,result.asOf);const phase=this.community.view(this.now()).phase;
       this.status('community',phase==='live'?'Receiving free timing':phase==='complete'?'Last session completed':phase==='stale'?'Snapshot is stale':'Waiting for an active session');this.emit();
     }catch(error){if(!this.active(token)||error.name==='AbortError')return;this.status('community',error.message||'Community feed unavailable');delay=20000;}
     finally{if(this.active(token))this.pollTimer=setTimeout(()=>this.poll(token),delay);}

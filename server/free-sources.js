@@ -1,3 +1,6 @@
+import {publicDashboardSnapshot} from './public-dashboard.js';
+import {publicF1Snapshot} from './f1-public.js';
+import {canonicalSnapshot,feedPhase} from '../js/free-model.js';
 import {cached,ApiError} from './openf1.js';
 const COMMUNITY='https://f1-live-api.onrender.com';
 const JOLPICA='https://api.jolpi.ca/ergast/f1';
@@ -6,6 +9,8 @@ async function jolpicaSlot(){
  const job=jolpicaQueue.catch(()=>{}).then(async()=>{const delay=Math.max(0,lastJolpicaStart+350-Date.now());if(delay)await new Promise(resolve=>setTimeout(resolve,delay));lastJolpicaStart=Date.now();});jolpicaQueue=job;return job;
 }
 export const SOURCE_DIRECTORY=[
+  {id:'dashboard-ws',name:'F1Dash public WebSocket',cost:'Public dashboard stream',live:true,provides:'Full public timing state while the independent dashboard has an active session.',limits:'Best-effort community source. GPS and radio depend on what the host receives; stale timestamps are rejected.',url:'https://github.com/pesaventofilippo/f1dash'},
+  {id:'f1dash',name:'F1 Dash public state',cost:'Public community endpoint',live:true,provides:'A second community timing snapshot, when its service publishes one.',limits:'Independent best-effort fallback; source timestamps and session phase are checked.',url:'https://github.com/slowlydev/f1-dash'},
   {id:'direct',name:'F1 public timing stream',cost:'Free public topics',live:true,provides:'Classification, lap and sector times, gaps, tyres, pit counts, weather and race control when published.',limits:'GPS, full car telemetry and some radio metadata can require connected access. Anonymous access varies by session.',url:'https://nicxe.github.io/f1_sensor/beta/features/f1tv-auth'},
   {id:'community',name:'F1 Insights community feed',cost:'Public endpoint, no key requested',live:true,provides:'A public snapshot of timing, radio, weather, track status, and any telemetry/positions the service actually receives.',limits:'Community hosted; may sleep, be stale or become unavailable. Old snapshots are labelled stale.',url:'https://github.com/harsh779/f1-live-api'},
   {id:'jolpica',name:'Jolpica F1',cost:'Free, no account',live:false,provides:'Season schedules, driver/team standings, points, wins and published race/qualifying results.',limits:'Published results and statistics, not a live timing or GPS feed.',url:'https://github.com/jolpica/jolpica-f1/blob/main/docs/README.md'},
@@ -64,4 +69,26 @@ export async function freeGeometry(circuit,year){
   if(!Array.isArray(x)||!Array.isArray(y)||x.length!==y.length||x.length<40)throw new ApiError('No matching circuit geometry is published for this season.',404);
   const points=x.map((v,i)=>({x:v,y:y[i]})).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
   return {points,rotation:Number(data.rotation)||0,circuitKey:circuit,source:'MultiViewer circuit geometry'};
+}
+
+export async function dashSnapshot(){
+ try{
+  const raw=await publicJson('https://rt-api.f1-dash.com/api/current',8000),snapshot=raw.state||raw;
+  if(!snapshot.SessionInfo||!snapshot.TimingData)throw new Error('F1 Dash has not published a current timing snapshot.');
+  if(Array.isArray(snapshot.CarData?.Entries))snapshot.CarData={Entries:snapshot.CarData.Entries.slice(-8)};
+  if(Array.isArray(snapshot.Position?.Position))snapshot.Position={Position:snapshot.Position.Position.slice(-8)};
+  return {available:true,source:'F1 Dash public feed',snapshot,asOf:snapshot.Heartbeat?.Utc||null};
+ }catch(error){return {available:false,source:'F1 Dash public feed',snapshot:null,asOf:null,error:error.message};}
+}
+let preferredFree=null;
+const freeProviders=[communitySnapshot,dashSnapshot,publicDashboardSnapshot,publicF1Snapshot];
+export async function freeLiveSnapshot(){
+ return cached('free:combined-snapshot',5000,async()=>{
+  if(preferredFree){const result=await preferredFree();if(result.available&&feedPhase(canonicalSnapshot(result.snapshot),result.asOf)==='live')return result;preferredFree=null;}
+  const results=await Promise.all(freeProviders.map(provider=>provider()));
+  const available=results.map((result,index)=>({...result,index})).filter(r=>r.available);
+  available.sort((a,b)=>Number(feedPhase(canonicalSnapshot(b.snapshot),b.asOf)==='live')-Number(feedPhase(canonicalSnapshot(a.snapshot),a.asOf)==='live')||(Date.parse(b.asOf)||0)-(Date.parse(a.asOf)||0));
+  if(available[0]){preferredFree=freeProviders[available[0].index];return available[0];}
+  return {available:false,source:'Free timing sources',snapshot:null,asOf:null,error:'The free live sources are currently unavailable. Reconnecting automatically.',diagnostics:results.map(r=>({source:r.source,error:r.error})),retryAfter:25};
+ });
 }

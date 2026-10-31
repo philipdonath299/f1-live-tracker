@@ -5,6 +5,9 @@ Reviewed 31 October 2026. This is an audit of useful public sources, not a claim
 | Source | Free coverage | Live? | How the tracker uses it |
 | --- | --- | --- | --- |
 | F1 public SignalR Core stream | Public classification, timing, gaps, sectors, mini-sectors, tyres, pit counts, weather, flags | During published sessions, subject to provider access | Native browser WebSocket, JSON Hub Protocol, sparse-patch merge and reconnect; no credentials |
+| F1 public HTTP transport | Public F1 timing topics over standard SignalR Long Polling | When anonymous access and Long Polling are offered | Bounded serverless connection, normal affinity cookies, handshake, subscription, keyframe, cleanup |
+| F1Dash public WebSocket | Complete timing states from an independent public dashboard | During active sessions | Bounded read from the source project's documented `/ws` endpoint |
+| F1 Dash public state | Another public timing snapshot service | Conditional on current service availability | Independent fallback through its published `/api/current` endpoint |
 | F1 Insights community API | Public timing snapshots and whichever radio, telemetry and position topics its server actually receives | Conditional; upstream age and phase checked | Automatic free fallback; fixed public snapshot endpoint, cached for 8 seconds |
 | Jolpica | Schedules, circuits, driver/team standings, points, wins, race results, qualifying and fastest-lap fields | Published statistics, not live car timing | Calendar fallback plus Championship view; 5-minute caching, 350ms request spacing and identifying user agent |
 | MultiViewer | Circuit points and rotation | Geometry only | Exact circuit key and year; never substituted for GPS |
@@ -43,3 +46,5 @@ Fresh, timestamped position samples take precedence. When no live GPS is availab
 - Supplementary schedule: https://whenstherace.com/f1-schedule-json/
 
 Run `node scripts/check-free-sources.mjs` for a current read-only provider check. The GitHub workflow runs it as a diagnostic after the deterministic tests/build. Availability failures do not turn fixtures into live data or fail an otherwise valid static build.
+
+The browser performs the standard OPTIONS/POST negotiation before opening the SignalR connection ID. A serverless HTTP fallback is used where browser CORS or WebSocket transport is unavailable. Each provider rejection remains visible. On the first deployment audit the original community host returned 503 and the cloud-side WebSocket probe failed; those results triggered the additional transport and provider fallbacks. This is not evidence of universal free availability.

@@ -1,6 +1,6 @@
 # F1 Live - your free pit wall
 
-The default view now uses **free live timing without an OpenF1 subscription or API key**. It connects to F1's public timing stream in your browser and checks an independent public community feed as a fallback. No live values are generated when the providers are unavailable.
+The default view now uses **free live timing without an OpenF1 subscription or API key**. It connects to F1's public timing stream in your browser and falls back to a bounded F1 public HTTP connection or either of two independent public community endpoints. No live values are generated when the providers are unavailable.
 
 Open the site and select **Free live**. Auto mode chooses a fresh free source. The source menu also lets you select F1 public timing or the community feed directly. **Data sources** explains the coverage and current connection state.
 
@@ -46,7 +46,7 @@ OpenF1 subscription credentials remain optional for its separate live provider. 
 
 ## Implementation
 
-The page loads `js/pitwall.js`, the `js/free-*.js` modules, historical timing/map modules and `css/pitwall.css`. Older scripts in the repository are not loaded or included in fresh production builds. Vercel functions use native fetch; free live streaming uses a native browser WebSocket, so it does not need a permanent server process or a paid WebSocket host.
+The page loads `js/pitwall.js`, the `js/free-*.js` modules, historical timing/map modules and `css/pitwall.css`. Older scripts in the repository are not loaded or included in fresh production builds. Vercel functions use native fetch; free live streaming uses a native browser WebSocket, so it does not need a permanent server process or a paid WebSocket host. The serverless fallback follows standard anonymous SignalR negotiation and Long Polling, preserving only temporary load-balancer affinity cookies.
 
 The proxy uses fixed provider URLs, bounded queries, caching, request deduplication, timeouts and rate-limit backoff. Jolpica data is cached for five minutes and requests are spaced below its published four-per-second burst limit within each warm instance. Source availability and limits can change.
 

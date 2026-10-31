@@ -1,5 +1,5 @@
 // Public F1 timing adapters. No account tokens, simulated timing or inferred GPS.
-export const FREE_TOPICS=['Heartbeat','SessionInfo','SessionStatus','SessionData','DriverList','TimingData','TimingAppData','TimingStats','WeatherData','TrackStatus','RaceControlMessages','LapCount','ExtrapolatedClock'];
+export const FREE_TOPICS=['Heartbeat','SessionInfo','SessionStatus','SessionData','DriverList','TimingData','TimingAppData','TopThree','WeatherData','TrackStatus','RaceControlMessages','LapCount','ExtrapolatedClock'];
 const aliases={SessionInfo:'session',SessionData:'session_data',DriverList:'drivers',TimingData:'timing',TimingAppData:'timing_app',TimingStats:'timing_stats',WeatherData:'weather',TrackStatus:'track_status',RaceControlMessages:'race_control',TeamRadio:'team_radio',LapCount:'lap_count',ExtrapolatedClock:'clock',Heartbeat:'heartbeat',CarData:'car_data',Position:'position'};
 export const values=value=>Array.isArray(value)?value:Object.entries(value||{}).filter(([k])=>!k.startsWith('_')).sort(([a],[b])=>Number(a)-Number(b)).map(([,v])=>v);
 export function mergePatch(base,patch){
