@@ -1,148 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>F1 Live Tracker</title>
-  
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-  
-  <!-- Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  
-  <!-- Global Error Logger -->
-  <script>
-    window.addEventListener('error', function(e) {
-      document.body.innerHTML += '<div style="position:fixed;top:0;left:0;z-index:999999;background:red;color:white;padding:20px;font-family:monospace;width:100%;height:100vh;overflow:auto;"><h2>CRASH LOG:</h2><p><b>Error:</b> ' + e.message + '</p><p><b>File:</b> ' + e.filename + ':' + e.lineno + '</p><hr><pre>' + (e.error ? e.error.stack : '') + '</pre></div>';
-    });
-    window.addEventListener('unhandledrejection', function(e) {
-      document.body.innerHTML += '<div style="position:fixed;top:0;left:0;z-index:999999;background:#b30000;color:white;padding:20px;font-family:monospace;width:100%;height:100vh;overflow:auto;"><h2>CRASH LOG (PROMISE):</h2><p><b>Reason:</b> ' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '</p><hr><pre>' + (e.reason && e.reason.stack ? e.reason.stack : '') + '</pre></div>';
-    });
-  </script>
-
-  
-  <!-- Styles -->
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/components.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101114">
+  <meta name="description" content="A Formula 1 pit wall with real timing, driver tracking, telemetry, team radio, race control and historical session replay.">
+  <title>F1 Live · Your pit wall</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23f04438'/%3E%3Cpath d='M14 43V21h35l-5 8H23v5h16l-5 9z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/css/pitwall.css">
+  <script type="module" src="/js/pitwall.js"></script>
 </head>
 <body>
-
-  <!-- Background Effects -->
-  <div class="glow-bg top-left"></div>
-  <div class="glow-bg bottom-right"></div>
-
-  <!-- Header -->
-  <header class="app-header glass">
-    <div class="header-content">
-      <div class="logo">
-        <i data-lucide="flag-triangle-right" class="text-neon"></i>
-        <h1>F1<span>LIVE</span></h1>
-      </div>
-      <div class="session-status">
-        <span class="pulse-dot"></span>
-        <span id="session-name">Fetching Session...</span>
-      </div>
-    </div>
+  <a class="skip-link" href="#main">Skip to timing</a>
+  <header class="header">
+    <a href="/" class="brand" aria-label="F1 Live home"><svg viewBox="0 0 48 30" aria-hidden="true"><path d="M2 27V3h44l-7 9H13v5h19l-7 10z" fill="currentColor"/></svg><strong>F1<span>LIVE</span></strong><span class="brand-caption">YOUR PIT WALL</span></a>
+    <div class="header-right"><span class="connection" id="connection" role="status"><i></i> CONNECTING</span><button id="latest" class="button ghost" aria-label="Open latest session">Latest</button><button id="refresh" class="button ghost" aria-label="Reconnect data" title="Reconnect data">↻ <span>Refresh</span></button></div>
   </header>
-
-  <!-- Race Control Banner -->
-  <div id="race-control-banner" class="race-control-banner hidden">
-      <div class="rc-flag" id="rc-flag"></div>
-      <div class="rc-message" id="rc-message"></div>
-  </div>
-
-  <!-- Main Content Area -->
-  <main class="app-main">
-    
-    <!-- Tab Navigation -->
-    <nav class="tab-nav glass">
-      <button class="tab-btn active" data-tab="track">
-        <i data-lucide="map"></i>
-        <span>Track</span>
-      </button>
-      <button class="tab-btn" data-tab="standings">
-        <i data-lucide="list-ordered"></i>
-        <span>Standings</span>
-      </button>
-      <button class="tab-btn" data-tab="radio">
-        <i data-lucide="radio"></i>
-        <span>Radio</span>
-      </button>
-      <button class="tab-btn" data-tab="calendar">
-        <i data-lucide="calendar"></i>
-        <span>Calendar</span>
-      </button>
-    </nav>
-
-    <!-- Content Panels -->
-    <div class="tab-content active" id="track-tab">
-      <div class="panel glass">
-        <h2>Live Track Map</h2>
-        <div class="track-container" id="track-map-container">
-          <!-- Glass HUD overlay for Live Weather -->
-          <div class="weather-hud glass">
-             <div class="weather-item">
-               <i data-lucide="cloud"></i> <span id="w-air">--°C</span>
-             </div>
-             <div class="weather-item">
-               <i data-lucide="sun"></i> <span id="w-track">--°C</span>
-             </div>
-             <div class="weather-item">
-               <i data-lucide="droplets"></i> <span id="w-hum">--%</span>
-             </div>
-          </div>
-          <!-- Canvas will be injected here -->
-          <canvas id="trackCanvas"></canvas>
-        </div>
-      </div>
+  <main id="main">
+    <div class="session-bar">
+      <div><div class="eyebrow" id="session-eyebrow">FORMULA 1 · SESSION CENTRE</div><h1 id="session-title">Every second. Every driver.</h1><p id="session-subtitle">Choose a session to open your pit wall.</p></div>
+      <div class="session-picker"><label for="year">SEASON</label><select id="year" aria-label="Season"></select><label for="session-select" class="sr-only">Session</label><select id="session-select"><option value="">Loading sessions…</option></select></div>
     </div>
-
-    <div class="tab-content" id="standings-tab">
-      <div class="panel glass">
-        <div class="standings-header">
-          <h2>Live Standings</h2>
-          <span class="lap-counter" id="lap-counter">Laps: --/--</span>
-        </div>
-        <div class="standings-list" id="standings-list">
-          <!-- Standings rows injected here -->
-          <div class="loading-state">Loading drivers...</div>
-        </div>
-      </div>
+    <div class="notice" id="notice" role="status" hidden><span id="notice-text"></span><button id="retry" class="button small">Retry</button><button id="archive" class="button small">Open 2023 Singapore replay</button></div>
+    <div class="access-note" id="access-note" hidden>Live access needs your subscribed OpenF1 account. <a href="https://openf1.org/auth.html" target="_blank" rel="noreferrer">How to enable live timing ↗</a><span>Historical replay is free.</span></div>
+    <div class="playback panel" id="playback" hidden>
+      <span class="mode-tag" id="mode-tag">REPLAY</span><button id="play" class="button icon" aria-label="Play replay">▶</button><span class="mono" id="replay-elapsed">00:00</span><label for="seek" class="sr-only">Replay time</label><input id="seek" type="range" min="0" max="1000" value="0" step="1"><span class="mono" id="replay-duration">00:00</span><label for="speed" class="sr-only">Playback speed</label><select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select><span id="buffer-state" class="muted">Real session data</span>
     </div>
-
-    <div class="tab-content" id="radio-tab">
-      <div class="panel glass">
-        <h2>Team Radio</h2>
-        <div class="radio-feed" id="radio-feed">
-          <!-- Radio items injected here -->
-           <div class="loading-state">Listening to feeds...</div>
+    <div class="session-strip panel"><div><span class="stat-label">SESSION CLOCK</span><strong id="session-clock" class="mono">—</strong></div><div><span class="stat-label">LAP</span><strong id="lap-count" class="mono">—</strong></div><div><span class="stat-label">FASTEST LAP</span><strong id="fastest-lap" class="mono purple">—</strong></div><div><span class="stat-label">AIR / TRACK</span><strong id="weather-temp" class="mono">— / —</strong></div><div><span class="stat-label">CONDITIONS</span><strong id="weather-extra">Awaiting weather</strong></div><div class="source-stat"><span class="stat-label">DATA SOURCE</span><strong>OpenF1 <span class="muted" id="data-age">· waiting</span></strong></div></div>
+    <nav class="tabs" aria-label="Pit wall views"><button class="tab active" data-tab="pitwall" aria-current="page">Pit wall</button><button class="tab" data-tab="control">Race control <span id="control-count" class="count">0</span></button><button class="tab" data-tab="radio">Team radio <span id="radio-count" class="count">0</span></button><button class="tab" data-tab="sessions">Sessions</button></nav>
+    <section id="pitwall-view" class="view active">
+      <div class="pitwall-grid">
+        <div class="map-column">
+          <section class="panel track-panel"><div class="panel-heading"><div><span class="eyebrow">THE CIRCUIT</span><h2 id="circuit-name">Track position</h2></div><span id="map-status" class="map-status">AWAITING GPS</span></div>
+            <div class="map-tools"><button id="fit" class="button small" title="Fit the complete circuit">Fit circuit</button><button id="zoom-in" class="button small" aria-label="Zoom in">+</button><button id="zoom-out" class="button small" aria-label="Zoom out">−</button><button id="labels" class="button small" aria-pressed="true">Labels</button><label class="follow-toggle"><input type="checkbox" id="follow"> Follow driver</label></div>
+            <div class="track-container"><canvas id="track-canvas" aria-label="Circuit map with recorded driver positions"></canvas><div class="map-empty" id="map-empty"><span class="map-empty-icon">⌁</span><strong>The grid is getting ready</strong><span>Real circuit geometry and GPS positions appear here.</span></div><div class="map-watermark">F1<span>LIVE</span><small>POSITION MAP</small></div></div>
+            <div class="map-footer"><span><i class="dot red"></i> Click a car or timing row to select a driver</span><span id="track-source">Session circuit geometry</span></div>
+          </section>
+          <section class="panel driver-panel"><div class="panel-heading"><div><span class="eyebrow">DRIVER FOCUS</span><h2 id="driver-title">Select a driver</h2></div><label for="driver-select" class="sr-only">Driver to follow</label><select id="driver-select"><option value="">Choose driver</option></select></div><div id="driver-details"><p class="empty">Select any driver for telemetry, sector times and lap history.</p></div></section>
         </div>
+        <section class="panel timing-panel"><div class="panel-heading"><div><span class="eyebrow">EVERY MILLISECOND</span><h2>Timing tower</h2></div><span class="muted" id="timing-label">Awaiting session</span></div><div class="table-scroll"><table class="timing-table"><thead><tr><th scope="col">POS</th><th scope="col">DRIVER</th><th scope="col">GAP <small>INTERVAL</small></th><th scope="col">LAST LAP <small>BEST LAP</small></th><th scope="col">TYRE <small>AGE / STOPS</small></th></tr></thead><tbody id="timing-body"><tr><td colspan="5" class="empty">Waiting for real timing data…</td></tr></tbody></table></div><div class="tower-legend"><span><i class="dot purple-bg"></i> Session best</span><span><i class="dot green-bg"></i> Personal best</span><span>Times in seconds · tyres: S M H I W</span></div></section>
       </div>
-    </div>
-
-    <div class="tab-content" id="calendar-tab">
-      <div class="panel glass">
-        <h2>Season Calendar</h2>
-        <div class="calendar-list" id="calendar-list">
-          <div class="loading-state">Loading sessions...</div>
-        </div>
-      </div>
-    </div>
-
+    </section>
+    <section id="control-view" class="view"><div class="panel feed-panel"><div class="panel-heading"><div><span class="eyebrow">FROM THE RACE DIRECTOR</span><h2>Race control</h2></div><span class="muted">Flags · investigations · track status</span></div><div id="control-feed" class="feed"><p class="empty">Race control messages appear when the session provides them.</p></div></div></section>
+    <section id="radio-view" class="view"><div class="panel feed-panel"><div class="panel-heading"><div><span class="eyebrow">ON THE PIT WALL</span><h2>Team radio</h2></div><span class="muted">Published clips · may arrive with a delay</span></div><div id="radio-feed" class="feed"><p class="empty">No radio clips available at this point in the session.</p></div></div></section>
+    <section id="sessions-view" class="view"><div class="panel feed-panel"><div class="panel-heading"><div><span class="eyebrow">CHOOSE YOUR WEEKEND</span><h2>Session calendar</h2></div><label class="search"><span class="sr-only">Search sessions</span><input id="session-search" type="search" placeholder="Search race, circuit or session…"></label></div><div id="session-calendar" class="calendar"><p class="empty">Loading session calendar…</p></div></div></section>
+    <footer><span>Built for the race. <strong>Stay on the pit wall.</strong></span><span>Unofficial fan project · <a href="https://openf1.org" target="_blank" rel="noreferrer">OpenF1</a> / <a href="https://multiviewer.app" target="_blank" rel="noreferrer">MultiViewer</a> · <span id="local-time">Your local time</span></span></footer>
   </main>
-
-  <!-- Scripts -->
-  <script src="js/f1-api.js"></script>
-  <script src="js/trackMap.js"></script>
-  <script src="js/standingsBoard.js"></script>
-  <script src="js/radioFeed.js"></script>
-  <script src="js/calendar.js"></script>
-  <script src="js/app.js"></script>
-  <script>
-    lucide.createIcons();
-  </script>
 </body>
 </html>
+
