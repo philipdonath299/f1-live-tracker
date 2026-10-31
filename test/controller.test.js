@@ -28,7 +28,7 @@ test('controller loads real API shapes, follows selection, seeks without leaking
   globalThis.window={devicePixelRatio:1,addEventListener(){}};
   globalThis.ResizeObserver=class{observe(){}};
   globalThis.Option=class{constructor(label,value){this.label=label;this.value=value;}};
-  globalThis.location={href:'http://localhost/?year=2024',search:'?year=2024'};
+  globalThis.location={href:'http://localhost/?year=2024&session=101',search:'?year=2024&session=101'};
   globalThis.history={replaceState(){}};
   globalThis.requestAnimationFrame=callback=>{frame=callback;};
   globalThis.fetch=async url=>{

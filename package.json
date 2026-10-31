@@ -1,1 +1,15 @@
-{"name":"f1-live-tracker","version":"2.0.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"dev":"node scripts/dev.mjs","start":"node scripts/dev.mjs","build":"node scripts/build.mjs","test":"node --test"}}
+{
+  "name": "f1-live-tracker",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test"
+  }
+}

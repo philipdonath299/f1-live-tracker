@@ -14,3 +14,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Check public source availability
+        run: node scripts/check-free-sources.mjs
+        timeout-minutes: 2
+        continue-on-error: true

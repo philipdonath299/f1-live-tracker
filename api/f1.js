@@ -1,3 +1,4 @@
+import {communitySnapshot,freeCalendar,freeStats,freeGeometry,SOURCE_DIRECTORY} from '../server/free-sources.js';
 import { openf1, cached, ApiError, liveConfigured } from '../server/openf1.js';
 const columns = {
   position: ['date', 'driver_number', 'position'],
@@ -84,7 +85,13 @@ export default async function handler(req, res) {
     const p = new URL(req.url, 'http://localhost').searchParams;
     const action = p.get('action') || 'catalog';
     let data;
-    if (action === 'catalog') {
+    if (action === 'free-live') data = await communitySnapshot();
+    else if (action === 'sources') data = {sources:SOURCE_DIRECTORY,liveConfigured:liveConfigured()};
+    else if (action === 'free-calendar' || action === 'free-stats') {
+      const year = integer(p.get('year') || new Date().getUTCFullYear(), 2023, new Date().getUTCFullYear()+1, 'year');
+      data = action === 'free-calendar' ? await freeCalendar(year) : await freeStats(year);
+    } else if (action === 'geometry') data = await freeGeometry(integer(p.get('circuit'),1,99999,'circuit'),integer(p.get('year'),2023,new Date().getUTCFullYear()+1,'year'));
+    else if (action === 'catalog') {
       const year = integer(p.get('year') || new Date().getUTCFullYear(), 2023, new Date().getUTCFullYear() + 1, 'year');
       data = { sessions: await openf1('sessions', { year }, 60000), liveConfigured: liveConfigured(), serverTime: new Date().toISOString() };
     } else {

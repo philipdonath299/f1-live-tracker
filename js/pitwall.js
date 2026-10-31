@@ -1,3 +1,4 @@
+import {installFreeFeatures} from './free-ui.js';
 import {lapTime,gapTime,modeFor,mergeData,deriveTiming,groupSamples,sampleAt,ms} from './pitwall-timing.js';
 import {TrackMap} from './pitwall-track.js';
 const $=id=>document.getElementById(id);
@@ -8,7 +9,7 @@ const clock=v=>new Date(v).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit
 const elapsed=v=>{const s=Math.max(0,Math.floor(v/1000));return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;};
 const state={generation:0,sessions:[],session:null,drivers:[],data:{},selected:null,mode:null,cursor:0,playing:false,speed:1,loading:false,fatal:false,buffer:null,telemetry:[],locations:{},streamBusy:false,timingBusy:false,nextTiming:0,nextStream:0,lastTiming:0,lastStream:0,lastFeed:0,lastRender:0};
 const map=new TrackMap($('track-canvas'),selectDriver);
-let controller=new AbortController(),catalogController,catalogGeneration=0,lastFrame=performance.now();
+let controller=new AbortController(),catalogController,catalogGeneration=0,lastFrame=performance.now(),free;
 function connection(text,kind=''){$('connection').className=`connection ${kind}`;$('connection').innerHTML=`<i></i>${esc(text)}`;}
 function notice(message,{retry=false,archive=false}={}){$('notice-text').textContent=message;$('notice').hidden=!message;$('retry').hidden=!retry;$('archive').hidden=!archive;}
 async function api(action,params={},signal=controller.signal){
@@ -21,9 +22,9 @@ async function loadCatalog(year,autoSelect=true,preferLatest=false){
   catalogController?.abort();catalogController=new AbortController();const ticket=++catalogGeneration;
   $('session-select').disabled=true;
   try{
-    const data=await api('catalog',{year},catalogController.signal);if(ticket!==catalogGeneration)return;
+    let data;try{data=await api('catalog',{year},catalogController.signal);}catch(error){if(error.name==='AbortError')throw error;data=await api('free-calendar',{year},catalogController.signal);}if(ticket!==catalogGeneration)return;
     state.sessions=data.sessions.filter(s=>!s.is_cancelled).sort((a,b)=>ms(b.date_start)-ms(a.date_start));state.configured=data.liveConfigured;
-    $('access-note').hidden=data.liveConfigured;renderSessionPicker();renderCalendar();
+    $('access-note').hidden=true;renderSessionPicker();renderCalendar();
     if(autoSelect){
       const key=preferLatest?0:Number(new URLSearchParams(location.search).get('session'));
       const chosen=state.sessions.find(s=>s.session_key===key)||state.sessions.find(s=>modeFor(s)==='live')||state.sessions.find(s=>modeFor(s)==='replay')||state.sessions.at(-1);
@@ -37,6 +38,11 @@ function renderSessionPicker(){
   if(state.session&&state.sessions.some(s=>s.session_key===state.session.session_key))$('session-select').value=state.session.session_key;
 }
 async function loadSession(key){
+  const listed=state.sessions.find(s=>s.session_key===Number(key));
+  if(listed&&modeFor(listed)==='live'&&!state.configured){free.start({expected:listed});return;}
+  const scheduled=listed?.provider==='jolpica'?listed:null;
+  if(scheduled){free.schedule(scheduled);return;}
+  free?.stop();
   controller.abort();controller=new AbortController();const generation=++state.generation;
   Object.assign(state,{session:null,drivers:[],data:{},selected:null,mode:null,playing:false,loading:true,fatal:false,buffer:null,telemetry:[],locations:{},streamBusy:false,timingBusy:false,nextTiming:0,nextStream:0,lastTiming:0,lastStream:0,lastFeed:0});
   map.reset();map.drivers=[];map.follow=false;$('follow').checked=false;
@@ -63,7 +69,7 @@ async function loadSession(key){
     const url=new URL(location.href);url.searchParams.set('session',key);url.searchParams.set('year',state.session.year);history.replaceState(null,'',url);
     if(state.sessions.some(s=>s.session_key===Number(key)))$('session-select').value=key;renderCalendar();
     if(['upcoming','cancelled'].includes(state.mode)){connection(state.mode.toUpperCase());notice(state.mode==='cancelled'?'This session was cancelled.':`This session starts ${localDate(state.session.date_start)}. Timing connects automatically when it begins.`);render();return;}
-    if(state.mode==='live'&&!state.configured){state.fatal=true;connection('LIVE ACCESS REQUIRED','error');notice('This session is live. Add your OpenF1 subscription credentials in Vercel, or choose a completed session for free replay.',{retry:true});render();return;}
+    if(state.mode==='live'&&!state.configured){free.start({expected:state.session});return;}
     $('playback').hidden=state.mode!=='replay';$('replay-duration').textContent=elapsed(state.end-state.start);
     loadTrack(generation);await loadTiming(generation,true);if(generation!==state.generation)return;
     if(state.mode==='replay'){
@@ -108,9 +114,10 @@ async function loadStream(generation,force=false){
   }catch(e){if(generation!==state.generation||e.name==='AbortError')return;state.nextStream=Date.now()+Math.max(10000,(e.retryAfter||10)*1000);notice(e.message,{retry:true});}
   finally{if(generation===state.generation)state.streamBusy=false;}
 }
-function selectDriver(number){state.selected=Number(number);$('driver-select').value=number;map.selected=Number(number);state.telemetry=[];state.nextStream=0;if(state.session&&!state.fatal&&!state.loading&&!['upcoming','cancelled'].includes(state.mode))loadStream(state.generation,true);render();}
+function selectDriver(number){if(state.mode==='free'){free.select(number);return;}state.selected=Number(number);$('driver-select').value=number;map.selected=Number(number);state.telemetry=[];state.nextStream=0;if(state.session&&!state.fatal&&!state.loading&&!['upcoming','cancelled'].includes(state.mode))loadStream(state.generation,true);render();}
 function updatePlay(){$('play').textContent=state.playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',state.playing?'Pause replay':'Play replay');}
 function render(){
+  if(state.mode==='free'){free.paint();return;}
   if(!state.session)return;const s=state.session,t=state.cursor,isRace=s.session_type==='Race'||['Race','Sprint'].includes(s.session_name),final=state.mode==='replay'&&t>=state.end;
   const {rows,fastest,lap}=deriveTiming(state.data,state.drivers,t,isRace,final);state.rows=rows;
   const weather=(state.data.weather||[]).filter(w=>ms(w.date)<=t).at(-1);
@@ -134,7 +141,7 @@ function renderDriver(row,fastest){
   if(!row)return;$('driver-title').textContent=row.full_name;$('driver-details').closest('.driver-panel').style.setProperty('--team',color(row.team_colour));
   const tel=sampleAt(state.telemetry,state.cursor,10000),value=k=>Number.isFinite(tel?.[k])?tel[k]:'—',drs=tel?([10,12,14].includes(tel.drs)?'OPEN':'CLOSED'):'—';
   const throttle=Math.min(100,Math.max(0,tel?.throttle||0)),brake=Math.min(100,Math.max(0,tel?.brake||0));
-  $('driver-details').innerHTML=`<div class="telemetry-grid"><div><span class="stat-label">SPEED</span><strong>${value('speed')}</strong><small>km/h</small></div><div><span class="stat-label">GEAR</span><strong>${value('n_gear')}</strong></div><div><span class="stat-label">RPM</span><strong>${value('rpm')}</strong></div><div><span class="stat-label">DRS</span><strong style="font-size:15px" class="${drs==='OPEN'?'green':''}">${drs}</strong></div></div><div class="pedals"><div class="pedal"><span>THROTTLE</span><div class="meter"><i style="--value:${throttle}%"></i></div><span>${tel?throttle+'%':'—'}</span></div><div class="pedal brake"><span>BRAKE</span><div class="meter"><i style="--value:${brake}%"></i></div><span>${tel?brake+'%':'—'}</span></div></div><div class="driver-meta"><span>LAP ${row.currentLap??'—'}</span><span>BEST ${lapTime(row.bestLap)}</span><span>${row.pitCount} PIT STOP${row.pitCount===1?'':'S'}</span><span>${tel?`SAMPLE ${clock(tel.date)}`:'Awaiting telemetry'}</span></div><div class="sector-grid">${row.sectors.map((v,i)=>`<div><span class="stat-label">SECTOR ${i+1}</span><strong>${v?v.toFixed(3):'—'}</strong></div>`).join('')}</div><div class="lap-history"><table class="lap-table"><thead><tr><th>LAP</th><th>TIME</th><th>S1</th><th>S2</th><th>S3</th></tr></thead><tbody>${row.completed.slice(-40).reverse().map(l=>`<tr><td>${l.lap_number}${l.is_pit_out_lap?' OUT':''}</td><td class="${l.lap_duration===fastest?'purple':l.lap_duration===row.bestLap?'green':''}">${lapTime(l.lap_duration)}</td>${[1,2,3].map(i=>`<td>${l[`duration_sector_${i}`]?.toFixed(3)||'—'}</td>`).join('')}</tr>`).join('')||'<tr><td colspan="5" class="empty">No completed laps at this time.</td></tr>'}</tbody></table></div>`;
+  $('driver-details').innerHTML=`<div class="telemetry-grid"><div><span class="stat-label">SPEED</span><strong>${value('speed')}</strong><small>km/h</small></div><div><span class="stat-label">GEAR</span><strong>${value('n_gear')}</strong></div><div><span class="stat-label">RPM</span><strong>${value('rpm')}</strong></div><div><span class="stat-label">DRS</span><strong style="font-size:15px" class="${drs==='OPEN'?'green':''}">${drs}</strong></div></div><div class="pedals"><div class="pedal"><span>THROTTLE</span><div class="meter"><i style="--value:${throttle}%"></i></div><span>${tel?throttle+'%':'—'}</span></div><div class="pedal brake"><span>BRAKE</span><div class="meter"><i style="--value:${brake}%"></i></div><span>${tel?brake+'%':'—'}</span></div></div><div class="driver-meta"><span>LAP ${row.currentLap??'—'}</span><span>BEST ${lapTime(row.bestLap)}</span><span>${row.pitCount??'-'} PIT STOP${row.pitCount===1?'':'S'}</span><span>${tel?`SAMPLE ${clock(tel.date)}`:'Awaiting telemetry'}</span></div><div class="sector-grid">${row.sectors.map((v,i)=>`<div><span class="stat-label">SECTOR ${i+1}</span><strong>${v?v.toFixed(3):'—'}</strong></div>`).join('')}</div><div class="lap-history"><table class="lap-table"><thead><tr><th>LAP</th><th>TIME</th><th>S1</th><th>S2</th><th>S3</th></tr></thead><tbody>${row.completed.slice(-40).reverse().map(l=>`<tr><td>${l.lap_number}${l.is_pit_out_lap?' OUT':''}</td><td class="${l.lap_duration===fastest?'purple':l.lap_duration===row.bestLap?'green':''}">${lapTime(l.lap_duration)}</td>${[1,2,3].map(i=>`<td>${l[`duration_sector_${i}`]?.toFixed(3)||'—'}</td>`).join('')}</tr>`).join('')||'<tr><td colspan="5" class="empty">No completed laps at this time.</td></tr>'}</tbody></table></div>`;
 }
 function renderFeeds(t){
   const control=(state.data.race_control||[]).filter(r=>ms(r.date)<=t).slice(-200).reverse();$('control-count').textContent=control.length;
@@ -158,6 +165,7 @@ function renderCalendar(){
   $('session-calendar').innerHTML=[...groups.values()].map(list=>`<div class="calendar-meeting"><h3>${esc(list[0].country_name)} <span class="muted">/ ${esc(list[0].circuit_short_name)}</span></h3>${list.sort((a,b)=>ms(a.date_start)-ms(b.date_start)).map(s=>`<button class="session-card ${s.session_key===state.session?.session_key?'active':''}" data-session="${s.session_key}"><span><strong>${esc(s.session_name)}</strong><small>${localDate(s.date_start)}</small></span><span class="mode-tag">${modeFor(s).toUpperCase()}</span></button>`).join('')}</div>`).join('')||'<p class="empty">No sessions match your search.</p>';
 }
 function frame(now){
+  if(state.mode==='free'||state.mode==='schedule'){free.frame(now);lastFrame=now;requestAnimationFrame(frame);return;}
   const delta=Math.min(now-lastFrame,200);lastFrame=now;
   if(state.session&&!state.fatal&&!state.loading){
     if(state.mode==='live')state.cursor=Math.min(state.end,Date.now()-6000);
@@ -182,11 +190,13 @@ $('seek').addEventListener('input',e=>{state.scrubbing=true;state.cursor=state.s
 $('seek').addEventListener('change',()=>{state.scrubbing=false;state.buffer=null;state.locations={};map.samples={};state.telemetry=[];state.nextStream=0;});
 $('follow').addEventListener('change',e=>{map.follow=e.target.checked;if(map.follow&&map.zoom<1.8)map.zoom=2;});$('fit').addEventListener('click',()=>{map.zoom=1;map.follow=false;$('follow').checked=false;});
 $('zoom-in').addEventListener('click',()=>{map.zoom=Math.min(6,map.zoom*1.3);});$('zoom-out').addEventListener('click',()=>{map.zoom=Math.max(.6,map.zoom/1.3);});$('labels').addEventListener('click',()=>{map.labels=!map.labels;$('labels').setAttribute('aria-pressed',String(map.labels));});
-const reconnect=()=>state.session?loadSession(state.session.session_key):loadCatalog(Number($('year').value));$('latest').addEventListener('click',()=>{ $('year').value=String(new Date().getFullYear());loadCatalog(Number($('year').value),true,true);});$('refresh').addEventListener('click',reconnect);$('retry').addEventListener('click',reconnect);
+const reconnect=()=>state.mode==='free'?free.start():state.session?loadSession(state.session.session_key):loadCatalog(Number($('year').value));$('latest').addEventListener('click',()=>free.start());$('refresh').addEventListener('click',reconnect);$('retry').addEventListener('click',reconnect);
 $('archive').addEventListener('click',()=>{$('year').value='2023';loadCatalog(2023,false);loadSession(9165);});
 window.addEventListener('online',()=>{state.nextTiming=state.nextStream=0;if(state.fatal)reconnect();});document.addEventListener('visibilitychange',()=>{lastFrame=performance.now();if(!document.hidden)state.nextTiming=state.nextStream=0;});
 window.addEventListener('pagehide',()=>{controller.abort();catalogController?.abort();document.querySelectorAll('audio').forEach(a=>a.pause());});
 $('local-time').textContent=Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll('_',' ');
 const currentYear=new Date().getFullYear();for(let year=currentYear;year>=2023;year--)$('year').add(new Option(String(year),String(year)));
 const requestedYear=Number(new URLSearchParams(location.search).get('year'));if(requestedYear>=2023&&requestedYear<=currentYear)$('year').value=requestedYear;
-loadCatalog(Number($('year').value));requestAnimationFrame(frame);
+free=installFreeFeatures({state,map,api,notice,connection,setTab,renderDriver,renderFeeds,cancelRequests:()=>{controller.abort();controller=new AbortController();}});
+if(new URLSearchParams(location.search).has('session'))loadCatalog(Number($('year').value));else{free.start();loadCatalog(Number($('year').value),false);}
+requestAnimationFrame(frame);
